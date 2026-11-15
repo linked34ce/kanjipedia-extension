@@ -36,7 +36,7 @@ try {
   await atomicWrite(path.join(root, '.local/acceptance.html'), fragmentHTML);
   const count = linkDocument(doc, dictionary);
   assert.equal(p.textContent, before);
-  const white = [...p.querySelectorAll('a')].find(a => a.textContent === '白亜');
+  const white = [...p.querySelectorAll('a')].find(a => a.textContent === '白亜(ハクア)');
   assert.equal(white?.href, `${ORIGIN}/kotoba/0005614200`);
   assert.equal(linkDocument(doc, dictionary), 0);
   const afterOutside = doc.body.cloneNode(true);

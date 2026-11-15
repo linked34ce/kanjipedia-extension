@@ -23,9 +23,9 @@ const dictionary = JSON.parse(await fs.readFile(input, 'utf8'));
 const expectedLinks = [['欧亜', 'オウア'], ['東亜', 'トウア'], ['白亜', 'ハクア'], ['流亜', 'リュウア']]
   .flatMap(([text, reading]) => {
     const path = chooseCandidate(dictionary, text, [reading]);
-    return path ? [{ text, href: new URL(path, ORIGIN).href }] : [];
+    return path ? [{ text: `${text}(${reading})`, href: new URL(path, ORIGIN).href }] : [];
   });
-assert.ok(expectedLinks.some(item => item.text === '白亜'), '白亜 acceptance entry is required');
+assert.ok(expectedLinks.some(item => item.text === '白亜(ハクア)'), '白亜 acceptance entry is required');
 const url = 'https://www.kanjipedia.jp/kanji/0000000500';
 async function check(enabled) {
   const context = await chromium.launchPersistentContext(path.join(temporary, enabled ? 'enabled' : 'baseline'), {
@@ -63,6 +63,7 @@ async function check(enabled) {
     let metrics;
     if (enabled) {
       assert.deepEqual(state.links, expectedLinks);
+      assert.deepEqual(state.highlights, expectedLinks.map(() => 'rgb(237, 241, 232)'));
       const isolated = contexts.find(item => item.origin.startsWith('chrome-extension://'));
       assert.ok(isolated, 'Extension isolated world actually loaded');
       metrics = (await cdp.send('Runtime.evaluate', { expression: 'globalThis.__KANJIPEDIA_METRICS__', contextId: isolated.id, returnByValue: true })).result.value;
@@ -71,9 +72,13 @@ async function check(enabled) {
       const repeated = (await cdp.send('Runtime.evaluate', { expression: 'globalThis.__KANJIPEDIA_METRICS__.count', contextId: isolated.id, returnByValue: true })).result.value;
       assert.equal(repeated, 0);
       const first = page.locator('a[data-kanjipedia-link]').first();
+      await first.hover();
+      assert.equal(await first.evaluate(a => getComputedStyle(a).backgroundColor), 'rgb(223, 231, 214)');
+      await page.mouse.move(999, 699);
       await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement.textContent), expectedLinks[0].text);
-      for (let i = 0; i < expectedLinks.findIndex(item => item.text === '白亜'); i++) await page.keyboard.press('Tab');
+      assert.equal(await first.evaluate(a => getComputedStyle(a).outlineStyle), 'solid');
+      for (let i = 0; i < expectedLinks.findIndex(item => item.text === '白亜(ハクア)'); i++) await page.keyboard.press('Tab');
       await Promise.all([page.waitForURL('**/kotoba/0005614200'), page.keyboard.press('Enter')]);
     }
     assert.deepEqual(errors, []);

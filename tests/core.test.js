@@ -93,7 +93,7 @@ test('DOM links only exact heading + reading, preserves text, other nodes and ev
     const before = doc.getElementById('target').textContent, otherHTML = other.outerHTML;
     const dictionary = stableDictionary([record(), record('/kotoba/0000000001', 'ハクアキ', '白亜紀'), record('/kotoba/0000000002', 'チガウ', '東亜')]);
     assert.equal(linkDocument(doc, dictionary), 1);
-    assert.equal(doc.querySelector('#target a').textContent, '白亜');
+    assert.equal(doc.querySelector('#target a').textContent, '白亜(ハクア)');
     assert.equal(doc.getElementById('target').textContent, before);
     assert.equal(other.outerHTML, otherHTML);
     other.click(); assert.equal(clicks, 1);
@@ -112,7 +112,8 @@ test('balanced multiple readings; existing links, nested elements, missing secti
     try {
       const doc = dom.window.document;
       assert.equal(linkDocument(doc, dictionary), expected, text);
-      if (expected) assert.equal(doc.querySelector('#target a').textContent, '白亜');
+      if (expected) assert.equal(doc.querySelector('#target a').textContent, text.trim());
+      if (doc.querySelector('#target a[href]')) assert.equal(doc.getElementById('target').dataset.kanjipediaShitatsuki, '1');
     } finally { dom.window.close(); }
   }
   for (const [html, pathname] of [[fixture.replace('alt="下つき"', 'alt="別の欄"'), '/kanji/0000000500'], [fixture, '/kotoba/0005614200'], [fixture, '/kanji/invalid']]) {
