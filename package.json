@@ -1,0 +1,27 @@
+{
+  "name": "kanjipedia-shitatsuki-links",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser.js",
+    "build": "node collector/cli.js build",
+    "validate": "node collector/cli.js validate",
+    "collect": "node collector/cli.js collect",
+    "survey": "node collector/cli.js survey",
+    "reparse": "node collector/cli.js reparse",
+    "report": "node collector/cli.js report"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "jsdom": "29.1.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.65.1"
+  }
+}

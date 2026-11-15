@@ -1,0 +1,8 @@
+node_modules/
+.local/
+artifacts/
+data/*
+!data/dictionary.schema.json
+extension/data.js
+extension/content.js
+playwright-report/
