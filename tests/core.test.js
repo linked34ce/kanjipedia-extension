@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { readFile } from 'node:fs/promises';
 import { headingKey, readingKey, safePath, stableDictionary, chooseCandidate } from '../shared/core.js';
 import { extractSearch, searchPage, searchURL } from '../collector/extract.js';
 import { validateDictionary } from '../scripts/build.js';
+import { linkDocument, segments } from '../extension/source.js';
 import { searchFixture, row } from './fixtures/search.js';
 const record = (path = '/kotoba/0005614200', reading = 'ハクア', variant = '白亜') => ({ path, reading, variants: [variant] });
 
@@ -77,4 +80,43 @@ test('pager normalizes omitted page and rejects foreign conditions/current page'
   assert.throws(() => extractSearch(searchFixture({ page: 1 }), { prefix: 'あ', page: 2 }));
   assert.throws(() => searchPage('/search?k=あ&wt=1&sk=leftHand&page=2', 'あ'));
   assert.throws(() => searchPage(searchURL('あ', 0), 'あ'));
+});
+
+const fixture = await readFile(new URL('./fixtures/kanji.html', import.meta.url), 'utf8');
+function domFor(html = fixture, pathname = '/kanji/0000000500') { return new JSDOM(html, { url: `https://www.kanjipedia.jp${pathname}` }); }
+test('DOM links only exact heading + reading, preserves text, other nodes and events twice', () => {
+  const dom = domFor();
+  try {
+    const doc = dom.window.document;
+    const other = doc.getElementById('other'); let clicks = 0;
+    other.addEventListener('click', () => clicks++);
+    const before = doc.getElementById('target').textContent, otherHTML = other.outerHTML;
+    const dictionary = stableDictionary([record(), record('/kotoba/0000000001', 'ハクアキ', '白亜紀'), record('/kotoba/0000000002', 'チガウ', '東亜')]);
+    assert.equal(linkDocument(doc, dictionary), 1);
+    assert.equal(doc.querySelector('#target a').textContent, '白亜');
+    assert.equal(doc.getElementById('target').textContent, before);
+    assert.equal(other.outerHTML, otherHTML);
+    other.click(); assert.equal(clicks, 1);
+    assert.equal(linkDocument(doc, dictionary), 0);
+    assert.equal(doc.querySelectorAll('a a').length, 0);
+  } finally { dom.window.close(); }
+});
+test('balanced multiple readings; existing links, nested elements, missing section stay safe', () => {
+  assert.equal(segments('白亜(ハクア・はくあ)・東亜(トウア)').length, 2);
+  assert.deepEqual(segments('白亜(ハクア'), []);
+  assert.deepEqual(segments('白亜(ハクア）'), []);
+  const dictionary = stableDictionary([record()]);
+  for (const [text, expected] of [['白亜(ハクア・はくあ)', 1], ['白亜（はくあ）', 1], ['  白亜 （はくあ）  ', 1], ['白亜(ハクア・チガウ)', 0], ['白亜', 1],
+    ['<a href="/x">白亜</a>(ハクア)', 0], ['<em>白亜</em>(ハクア)', 0], ['白亜紀(ハクアキ)', 0]]) {
+    const dom = domFor(fixture.replace(/欧亜\(オウア\)・東亜\(トウア\)・白亜\(ハクア\)・流亜\(リュウア\)/u, text));
+    try {
+      const doc = dom.window.document;
+      assert.equal(linkDocument(doc, dictionary), expected, text);
+      if (expected) assert.equal(doc.querySelector('#target a').textContent, '白亜');
+    } finally { dom.window.close(); }
+  }
+  for (const [html, pathname] of [[fixture.replace('alt="下つき"', 'alt="別の欄"'), '/kanji/0000000500'], [fixture, '/kotoba/0005614200'], [fixture, '/kanji/invalid']]) {
+    const dom = domFor(html, pathname);
+    try { assert.equal(linkDocument(dom.window.document, dictionary), 0); } finally { dom.window.close(); }
+  }
 });
