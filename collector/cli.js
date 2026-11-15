@@ -34,9 +34,14 @@ try {
   } else if (command === 'build' || command === 'validate') {
     let input = values.input;
     if (!input) {
-      const current = await readJSON(path.join(root, 'data/current.json'));
-      input = path.join(root, 'data', current.directory, 'dictionary.json');
-      if (hash(await fs.readFile(input)) !== current.sha256) throw new Error('Current generation hash mismatch');
+      input = path.join(root, 'data/published/dictionary.json');
+      try { await fs.access(input); }
+      catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        const current = await readJSON(path.join(root, 'data/current.json'));
+        input = path.join(root, 'data', current.directory, 'dictionary.json');
+        if (hash(await fs.readFile(input)) !== current.sha256) throw new Error('Current generation hash mismatch');
+      }
     }
     print(command === 'build' ? await buildExtension({ input }) :
       { valid: Boolean(await validateDictionary(await readJSON(input))) });

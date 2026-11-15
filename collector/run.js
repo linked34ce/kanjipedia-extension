@@ -177,7 +177,7 @@ export async function exportRun(run, outputRoot, { partial = false } = {}) {
     sha256: hash(body), generatedAt: new Date().toISOString(), runCreatedAt: run.createdAt,
     startedAt: fetchedTimes[0] ?? null, finishedAt: fetchedTimes.at(-1) ?? null,
     dictionaryKeys: Object.keys(dictionary.entries).length,
-    redistribution: 'unresolved-private-local-only' };
+    redistribution: 'github-only-user-approved' };
   await atomicWrite(path.join(directory, 'dictionary.json'), body);
   await writeJSON(path.join(directory, 'manifest.json'), manifest);
   // Publish a pointer only after both generation artifacts are durable.

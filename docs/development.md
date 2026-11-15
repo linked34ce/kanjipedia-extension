@@ -2,9 +2,9 @@
 
 拡張の開発、事前調査、データ収集・更新、ビルド、検証に関する手順です。拡張の導入・仕様・使い方は [README](../README.md) を参照してください。
 
-調査の観測結果と利用条件の確認状況は [サイト確認記録](site-status.md)、実装・テスト結果と収集範囲は [実装・受入検証](verification.md) に記録しています。コード実装済み、全接頭辞の収集は途中、収集データの公開・再配布の根拠は未解決です。
+調査の観測結果と利用条件の確認状況は [サイト確認記録](site-status.md)、実装・テスト結果と収集範囲は [実装・受入検証](verification.md) に記録しています。コード実装済み、全接頭辞の収集は途中です。公開方針は下記のとおり、ユーザーの判断に基づいてGitHubのみを対象にしています。
 
-このワークスペースでは、検証した「白亜」を含む部分データから `extension/data.js` と `extension/content.js` を生成済みです。取得HTML、辞書JSON、生成された拡張JSはGit対象外のため、新しいチェックアウトでは以下の手順でデータを用意してビルドしてください。実サイト上でのChrome手動確認は未実施です。
+GitHub向けの対応表は `data/published/`、その対応表から生成した読み込み用ファイルは `extension/data.js` と `extension/content.js` に保存し、Git管理します。取得HTML、HTTP証跡、収集キュー、ローカルの収集世代はGit対象外です。新しいチェックアウトからも追加収集なしで拡張を読み込めます。実サイト上でのChrome手動確認は未実施です。
 
 ## 環境とオフライン検証
 
@@ -105,7 +105,7 @@ node scripts/verify-local.js data/partial/9f47a2d6-db36-449d-94f5-455490ae081f/d
 node tests/browser.js --input data/partial/9f47a2d6-db36-449d-94f5-455490ae081f/dictionary.json --html .local/acceptance.html
 ```
 
-通常の `npm run build` は `data/current.json` が指す完成世代を使います。現在の完成世代は「あ」の範囲だけなので、「白亜」を含む今回の部分データを使う際は上記の明示指定が必要です。
+通常の `npm run build` と `npm run validate` は、同梱した `data/published/dictionary.json` を使います。このファイルがまだない開発環境では、`data/current.json` が指す完成世代を使います。個別の収集世代を試す場合は上記の明示指定を使ってください。
 
 ## ローカルデータの削除
 
@@ -113,4 +113,18 @@ node tests/browser.js --input data/partial/9f47a2d6-db36-449d-94f5-455490ae081f/
 
 調査本文は `.local/survey/`、HTTP証跡は `.local/http/`、中点レビューは `.local/verified-variants.json`、テスト画像等は `artifacts/` にあります。生成済み辞書も削除する場合は `extension/data.js` と `extension/content.js` を削除し、Chromeから拡張を削除します。**日次上限・冷却時間の維持のため、収集を続ける間は `.local/gate.json` を削除しないでください。** プロセスロックは通常自動解放され、異常終了したPIDのロックも次回起動で回復します。
 
-データやHTMLを公開する前に利用条件と権利根拠を確認してください。コミット、外部公開、ストア申請、問い合わせ送信は実施していません。
+公開用ファイルに取得HTMLや収集キューを混入させないでください。今後も機能・修正・データ更新などの適切な作業単位で検証してコミットします。
+
+## GitHub向けの公開データと配布
+
+2026-11-15のユーザー判断に基づき、言葉の表記・読み・URLの対応表を公開対象にします。配布先はGitHubのみとし、Chromeウェブストアへの公開・申請は行いません。説明本文、画像、取得HTML、HTTPヘッダー、認証情報、キューは配布しません。調査で確認したサイトの記載とプロジェクトとしての公開判断は、[サイト確認記録](site-status.md)に分けて記録しています。
+
+公開用スナップショットと読み込み用拡張ファイルを更新するには、検証済みのローカル辞書を明示して実行します。
+
+```powershell
+node scripts/package-data.js --input data/partial/RUN_ID/dictionary.json
+npm run validate
+npm run build
+```
+
+`package-data.js` は入力manifestのSHA-256と辞書スキーマを検証し、対応表と収集範囲の要約だけを `data/published/` にコピーして拡張をビルドします。部分データでも公開できますが、manifestの `complete: false`、不足ページ、解析保留を維持します。GitHubのZIPを展開した利用者は、収集CLIやNode.jsを実行せず `extension` をChromeへ読み込めます。

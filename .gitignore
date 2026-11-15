@@ -3,6 +3,5 @@ node_modules/
 artifacts/
 data/*
 !data/dictionary.schema.json
-extension/data.js
-extension/content.js
+!data/published/
 playwright-report/

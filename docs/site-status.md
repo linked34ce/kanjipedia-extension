@@ -33,10 +33,10 @@ Skillの過去の観測と今回の実測を区別する。今回の調査も収
 
 ## 利用条件の確認状況
 
-[協会サイトポリシー](https://www.kanken.or.jp/policy/)は知的財産権と利用範囲を定め、法令上認められる場合以外の私的利用を超える転用・複製等に承諾を求めている。今回の自動取得や対応表データの公開を明示的に許諾する記載は確認できなかった。この対応表への具体的な適用と、データ公開・再配布の根拠は未解決として扱う。
+[協会サイトポリシー](https://www.kanken.or.jp/policy/)は知的財産権と利用範囲を定め、法令上認められる場合以外の私的利用を超える転用・複製等に承諾を求めている。今回の自動取得や対応表データの公開を明示的に許諾する記載は確認できなかった。この記録は調査時点に確認できた記載を残すものであり、下記のプロジェクトの公開判断とは区別する。
 
 [リンク規定](https://www.kanken.or.jp/sitelink/)の対象ドメインはkanken.or.jpであり、これだけでkanjipedia.jp内の補完リンクに許可または禁止があると断定しない。robotsがパスを拒否していないことも、収集データの再利用許諾にはならない。
 
-今回の取得物と生成辞書は私的ローカル検証用としてGit対象外にした。コードと合成fixtureの開発は完了したが、データの公開判断は別途必要。問い合わせ、公開、コミット、ストア申請は行っていない。
+2026-11-15、ユーザーは言葉とURLの対応表について公開可能と判断し、GitHubでの公開を承認した。読みの照合に必要な仮名を含む対応表、収集範囲の要約、読み込み用の拡張ファイルをGit管理する。説明本文、画像、取得HTML、HTTP証跡、キュー、認証情報は対象外とする。配布先はGitHubのみとし、Chromeウェブストアへの公開・申請は行わない。
 
 実装の根拠資料: [Chrome content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts)、[Playwrightの拡張テスト](https://playwright.dev/docs/chrome-extensions)、[RFC 9309](https://www.rfc-editor.org/rfc/rfc9309.html#section-2.3.1.3)、[Node.jsリリース](https://nodejs.org/en/about/previous-releases)。robotsの404と検索の404は明確に区別し、後者を0件として扱わない。

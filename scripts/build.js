@@ -12,7 +12,7 @@ export async function validateDictionary(dictionary) {
   if (!validate(dictionary)) throw new Error(`Dictionary schema: ${JSON.stringify(validate.errors)}`);
   return dictionary;
 }
-export async function buildExtension({ input = path.join(root, 'data/dictionary.json'), output = path.join(root, 'extension') } = {}) {
+export async function buildExtension({ input = path.join(root, 'data/published/dictionary.json'), output = path.join(root, 'extension') } = {}) {
   const body = await fs.readFile(input, 'utf8');
   const dictionary = await validateDictionary(JSON.parse(body));
   const manifest = await readJSON(path.join(path.dirname(input), 'manifest.json'), null);
