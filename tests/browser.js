@@ -63,7 +63,7 @@ async function check(enabled) {
     let metrics;
     if (enabled) {
       assert.deepEqual(state.links, expectedLinks);
-      assert.deepEqual(state.highlights, expectedLinks.map(() => 'rgb(237, 241, 232)'));
+      assert.deepEqual(state.highlights, expectedLinks.map(() => 'rgb(214, 233, 250)'));
       const isolated = contexts.find(item => item.origin.startsWith('chrome-extension://'));
       assert.ok(isolated, 'Extension isolated world actually loaded');
       metrics = (await cdp.send('Runtime.evaluate', { expression: 'globalThis.__KANJIPEDIA_METRICS__', contextId: isolated.id, returnByValue: true })).result.value;
@@ -73,7 +73,7 @@ async function check(enabled) {
       assert.equal(repeated, 0);
       const first = page.locator('a[data-kanjipedia-link]').first();
       await first.hover();
-      assert.equal(await first.evaluate(a => getComputedStyle(a).backgroundColor), 'rgb(223, 231, 214)');
+      assert.equal(await first.evaluate(a => getComputedStyle(a).backgroundColor), 'rgb(190, 218, 243)');
       await page.mouse.move(999, 699);
       await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement.textContent), expectedLinks[0].text);
