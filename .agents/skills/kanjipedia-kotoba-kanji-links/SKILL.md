@@ -21,7 +21,7 @@ description: "漢字ペディアの言葉ページの大見出しを漢字一字
 
 1. 親ディレクトリを含む `AGENTS.md` と、`extension/source.js`、`manifest.json`、`content.css`、`scripts/build.js`、`scripts/package-data.js`、既存テストを読む。既存の機能・辞書・公開済みファイルを尊重する。
 2. [調査記録と未確認事項](references/site-findings.md)を読む。螺旋の生HTML・大見出しのDOM・既存の先頭漢字リンク・漢字検索結果を少数アクセスで確認する。候補セレクターを確認済み事実として扱わず、螺・旋のURLの数値IDを推測しない。
-3. [実装・データ・検証計画](references/implementation-plan.md)に従い、まず合成fixtureで漢字対応表、Unicode文字の扱い、DOM範囲の書換えを実装してオフライン検証する。
+3. [実装・データ・検証計画](references/implementation-plan.md)に従い、まず合成fixtureで漢字対応表、Unicode文字の扱い、DOM範囲の書換えを実装してオフライン検証する。期待値の独立性と保存障害・通信の確認方法は同資料の [テストの品質](references/implementation-plan.md#テストの品質) を参照する。
 4. 収集は既存の `HttpGate` とプロセスロック・永続カウンターを共用する。新しい漢字収集runを既存の言葉収集runと分け、検索の種類・条件を明示する。日次枠がない間は追加のサイト取得をせず、保存資料とfixtureで進める。
 5. 対応表は「螺」「旋」の少数検証から始める。全体収集へ広げるときは、漢字の読み検索など検索結果からまとめて取得できる方式を検証し、全言葉記事の巡回や文字ごとの大量検索を避ける。
 6. MV3の対象に言葉ページを追加し、既存ページとは処理を分ける。注入する同梱JSとCSSをビルド・公開用パッケージに含め、ネットワーク不要で動くことを確認する。
