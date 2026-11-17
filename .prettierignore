@@ -1,11 +1,11 @@
-# Local data and build/test output are also excluded by .gitignore.
+# ローカルデータとビルド・テスト出力は.gitignoreでも除外する。
 .agents/
 
-# Generated files and hash-verified published snapshots.
+# 生成ファイルとハッシュ検証済みの公開用スナップショット。
 package-lock.json
 extension/content.js
 extension/data.js
 data/published/
 
-# Preserve whitespace in the browser's HTML fixture.
+# ブラウザ用HTMLフィクスチャの空白を保持する。
 tests/fixtures/*.html

@@ -1,6 +1,7 @@
-// Synthetic structural fixtures; no downloaded page is redistributed.
+// 構造確認用の合成データを使い、取得したページは再配布しない。
 export const row = (heading = '白亜', reading = 'ハクア', id = '0005614200') =>
   `<li><a href="/kotoba/${id}">${heading}<br><span>(${reading})</span></a></li>`;
+
 export function searchFixture({
   prefix = 'あ',
   page = 1,

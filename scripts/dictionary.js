@@ -12,7 +12,9 @@ export async function validateDictionary(dictionary) {
   const validate = new Ajv({ allErrors: true, ownProperties: true }).compile(
     schema,
   );
+
   if (!validate(dictionary))
     throw new Error(`Dictionary schema: ${JSON.stringify(validate.errors)}`);
+
   return dictionary;
 }

@@ -46,11 +46,13 @@ const local = path.join(root, '.local');
 const runDirectory = (id) => {
   if (!/^[a-zA-Z0-9-]+$/.test(id ?? ''))
     throw new Error('Provide --run RUN_ID');
+
   return path.join(local, 'runs', id);
 };
 const print = (value) => console.log(JSON.stringify(value, null, 2));
 let release;
 let cancelled = false;
+
 process.on('SIGINT', () => {
   cancelled = true;
 });
@@ -62,18 +64,24 @@ try {
     );
   } else if (command === 'build' || command === 'validate') {
     let input = values.input;
+
     if (!input) {
       input = path.join(root, 'data/published/dictionary.json');
+
       try {
         await fs.access(input);
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
+
         const current = await readJSON(path.join(root, 'data/current.json'));
+
         input = path.join(root, 'data', current.directory, 'dictionary.json');
+
         if (hash(await fs.readFile(input)) !== current.sha256)
           throw new Error('Current generation hash mismatch', { cause: error });
       }
     }
+
     print(
       command === 'build'
         ? await buildExtension({ input })
@@ -87,9 +95,12 @@ try {
     );
   } else {
     release = await acquireLock(local);
+
     const limit = Number(values['max-requests'] ?? 10);
+
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)
       throw new Error('Request limit must be 1..500');
+
     const gate = new HttpGate({
       state: await readJSON(path.join(local, 'gate.json'), {}),
       save: (state) => writeJSON(path.join(local, 'gate.json'), state),
@@ -97,6 +108,7 @@ try {
       cancelled: () => cancelled,
       recordResponse: async (result) => {
         const id = `${Date.now()}-${hash(result.url).slice(0, 16)}`;
+
         await atomicWrite(path.join(local, 'http', `${id}.html`), result.body);
         await writeJSON(path.join(local, 'http', `${id}.json`), {
           ...result,
@@ -105,6 +117,7 @@ try {
         });
       },
     });
+
     if (command === 'survey') {
       const groups = {
         terms: [
@@ -122,22 +135,29 @@ try {
         target: [searchURL('はくあ')],
       };
       const urls = groups[values.group ?? 'terms'];
+
       if (!urls) throw new Error('Unknown survey group');
+
       const refreshedOrigins = new Set();
       const describe = async (evidence) => {
         const url = new URL(evidence.url);
+
         if (url.pathname !== '/search' || evidence.status !== 200) return;
+
         const html = await fs.readFile(
           path.join(local, 'survey', evidence.bodyFile),
           'utf8',
         );
+
         if (hash(html) !== evidence.bodyHash)
           throw new Error('Survey hash mismatch');
+
         const prefix = url.searchParams.get('k');
         const parsed = extractSearch(html, {
           prefix,
           page: searchPage(url, prefix),
         });
+
         print({
           prefix,
           page: parsed.page,
@@ -146,46 +166,61 @@ try {
           rowCount: parsed.rowCount,
           unresolved: parsed.diagnostics.length,
         });
+
         if (
           (values.group ?? 'terms') === 'search' &&
           !urls.includes(searchURL(prefix, parsed.lastPage))
         )
           urls.push(searchURL(prefix, parsed.lastPage));
       };
+
       for (const url of urls) {
         if (cancelled) throw new Stop('Interrupted', 2);
+
         const evidenceId = hash(url);
         const file = path.join(local, 'survey', `${evidenceId}.json`);
+
         if (!values.refresh) {
           try {
             const existing = await readJSON(file);
+
             print({ cached: true, ...existing });
             await describe(existing);
+
             continue;
           } catch (error) {
             if (error.code !== 'ENOENT') throw error;
           }
         }
+
         const origin = new URL(url).origin;
+
         await gate.ensureRobots(origin, {
           force: Boolean(values.refresh) && !refreshedOrigins.has(origin),
         });
         refreshedOrigins.add(origin);
+
         let result;
+
         try {
           result = await gate.get(url);
         } catch (error) {
           if (!error.response) throw error;
-          result = error.response; // survey records a 5xx once without retrying it
+
+          result = error.response; // 調査では5xxを再試行せず、一度だけ記録する
         }
+
         const bodyFile = `${evidenceId}.html`;
+
         await atomicWrite(path.join(local, 'survey', bodyFile), result.body);
+
         const evidence = {
           ...result,
           body: undefined,
           bodyFile,
           bodyHash: hash(result.body),
         };
+
         await writeJSON(file, evidence);
         print(evidence);
         await describe(evidence);
@@ -198,6 +233,7 @@ try {
       );
       const file = path.join(local, 'verified-variants.json');
       const existing = await readJSON(file, []);
+
       await writeJSON(file, [
         ...existing.filter((v) => v.path !== review.path),
         review,
@@ -209,13 +245,17 @@ try {
       print({ reset: true, cooldownUntil: gate.state.cooldownUntil });
     } else if (['collect', 'resume', 'reparse', 'export'].includes(command)) {
       let run;
+
       if (command === 'collect') {
         const requested = (values.prefixes ?? (values.full ? '' : 'あ'))
           .split(',')
           .filter(Boolean);
+
         if (requested.some((prefix) => !/^[ぁ-ゖ]{1,16}$/u.test(prefix)))
           throw new Error('Prefix must be 1..16 hiragana');
+
         const selected = [...(values.full ? PREFIXES : [])];
+
         for (const prefix of new Set(requested))
           if (!selected.some((p) => p.prefix === prefix))
             selected.push(
@@ -226,34 +266,50 @@ try {
                 reason: '明示された検索範囲',
               },
             );
+
         if (!selected.length) throw new Error('Provide at least one prefix');
+
         const seedPage = Number(values['seed-page'] ?? 1);
+
         if (!Number.isSafeInteger(seedPage) || seedPage < 1)
           throw new Error('Invalid seed page');
+
         run = createRun(selected, { full: Boolean(values.full), seedPage });
         run.verifiedVariants = await readJSON(
           path.join(local, 'verified-variants.json'),
           [],
         );
+
         if (values['from-survey']) {
           const surveyDirectory = path.join(local, 'survey');
+
           for (const file of await fs.readdir(surveyDirectory)) {
             if (!file.endsWith('.json')) continue;
+
             const evidence = await readJSON(path.join(surveyDirectory, file));
             const url = new URL(evidence.url);
+
             if (url.pathname !== '/search' || evidence.status !== 200) continue;
+
             const prefix = url.searchParams.get('k');
+
             if (!selected.some((p) => p.prefix === prefix)) continue;
+
             const page = searchPage(url, prefix);
+
             addPage(run, prefix, page);
+
             const stem = jobStem(prefix, page);
             const html = await fs.readFile(
               path.join(surveyDirectory, evidence.bodyFile),
               'utf8',
             );
+
             if (hash(html) !== evidence.bodyHash)
               throw new Error('Survey hash mismatch');
+
             const directory = runDirectory(run.runId);
+
             await atomicWrite(path.join(directory, `${stem}.html`), html);
             await writeJSON(
               path.join(directory, `${stem}.response.json`),
@@ -268,20 +324,24 @@ try {
               },
             );
           }
-          // Process all imported evidence offline before spending the request budget.
+
+          // 要求枠を消費する前に、取り込んだ証跡をすべてオフラインで処理する。
           run.queue.sort(
             (a, b) => Number(Boolean(b.bodyFile)) - Number(Boolean(a.bodyFile)),
           );
         }
+
         await writeJSON(path.join(runDirectory(run.runId), 'run.json'), run);
         print({ runId: run.runId });
       } else
         run = await readJSON(path.join(runDirectory(values.run), 'run.json'));
+
       if (command === 'reparse')
         run.verifiedVariants = await readJSON(
           path.join(local, 'verified-variants.json'),
           run.verifiedVariants ?? [],
         );
+
       if (command === 'export')
         print(
           await exportRun(run, path.join(root, 'data'), {
@@ -294,7 +354,9 @@ try {
           cancelled: () => cancelled,
           progress: print,
         });
+
         print(report);
+
         if (!report.complete) process.exitCode = 2;
       }
     } else throw new Error(`Unknown command: ${command}`);

@@ -17,9 +17,12 @@ export async function buildExtension({
     path.join(path.dirname(input), 'manifest.json'),
     null,
   );
+
   if (manifest && manifest.sha256 !== hash(body))
     throw new Error('Dictionary manifest hash mismatch');
+
   await fs.mkdir(output, { recursive: true });
+
   if (path.resolve(output) !== path.resolve(root, 'extension')) {
     for (const file of ['manifest.json', 'content.css'])
       await fs.copyFile(
@@ -27,10 +30,12 @@ export async function buildExtension({
         path.join(output, file),
       );
   }
+
   const serialized = JSON.stringify(JSON.stringify(dictionary))
     .replace(/</g, '\\u003c')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
+
   await atomicWrite(
     path.join(output, 'data.js'),
     `globalThis.__KANJIPEDIA_DATA__ = JSON.parse(${serialized});\n`,
@@ -42,12 +47,14 @@ export async function buildExtension({
     target: 'chrome120',
     outfile: path.join(output, 'content.js'),
   });
+
   return {
     bytes: Buffer.byteLength(body),
     sha256: hash(body),
     keys: Object.keys(dictionary.entries).length,
   };
 }
+
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)

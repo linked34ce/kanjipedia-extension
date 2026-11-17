@@ -20,8 +20,10 @@ import {
 import { HttpGate } from '../collector/http.js';
 import { extractSearch } from '../collector/extract.js';
 import { searchFixture, row } from './fixtures/search.js';
+
 const plan = [{ prefix: 'あ', status: 'target', verification: 'unconfirmed' }];
 const temporary = () => fs.mkdtemp(path.join(os.tmpdir(), 'kanjipedia-test-'));
+
 function fakeGate(bodies) {
   let now = Date.parse('2026-11-15T00:00:00Z'),
     calls = 0;
@@ -36,15 +38,19 @@ function fakeGate(bodies) {
     request: async (url) => {
       if (url.endsWith('/robots.txt'))
         return new Response('User-agent:*\nDisallow:');
+
       calls++;
+
       return new Response(bodies.shift() ?? '', {
         status: bodies.status ?? 200,
       });
     },
   });
+
   return { gate, calls: () => calls };
 }
-test('persistent queue finishes last remainder page and resumes without HTTP', async () => {
+
+test('永続キューで端数の最終ページまで完了し、再開時はHTTPで再取得しない', async () => {
   const directory = await temporary();
   const run = createRun(plan);
   const { gate, calls } = fakeGate([
@@ -61,22 +67,31 @@ test('persistent queue finishes last remainder page and resumes without HTTP', a
     }),
   ]);
   const report = await processRun(run, directory, gate);
+
   assert.equal(report.complete, true);
   assert.equal(report.prefixes[0].rows, 3);
   assert.equal(calls(), 2);
+
   const saved = await readJSON(path.join(directory, 'run.json'));
+
   await processRun(saved, directory, gate);
+
   assert.equal(calls(), 2);
+
   const before = JSON.stringify(saved.queue.map((j) => j.parsed));
+
   await processRun(saved, directory, null, { reparse: true });
+
   assert.equal(JSON.stringify(saved.queue.map((j) => j.parsed)), before);
 });
-test('inflight recovery after evidence save, parse or done-write interruption never refetches', async () => {
+
+test('証跡保存後・解析後・完了記録前の中断から再取得せず処理中のジョブを復元する', async () => {
   for (const stage of ['after-fetch', 'after-parse', 'before-done']) {
     const directory = await temporary();
     const run = createRun(plan),
       job = run.queue[0];
     const html = searchFixture();
+
     await atomicWrite(path.join(directory, '3042-1.html'), html);
     await writeJSON(path.join(directory, '3042-1.response.json'), {
       bodyHash: hash(html),
@@ -85,18 +100,24 @@ test('inflight recovery after evidence save, parse or done-write interruption ne
       url: 'https://www.kanjipedia.jp/search?k=あ&wy=1&sk=leftHand',
     });
     job.state = 'inflight';
+
     if (stage !== 'after-fetch')
       job.parsed = extractSearch(html, { prefix: 'あ', page: 1 });
+
     await writeJSON(path.join(directory, 'run.json'), run);
+
     const resumed = await readJSON(path.join(directory, 'run.json'));
+
     assert.equal((await processRun(resumed, directory, null)).complete, true);
     assert.equal(resumed.queue[0].state, 'done');
   }
 });
-test('atomic response envelope reconstructs HTML after interrupted HTML write', async () => {
+
+test('HTML書き込みが中断しても原子的に保存した応答一式からHTMLを復元する', async () => {
   const directory = await temporary(),
     run = createRun(plan),
     html = searchFixture();
+
   await writeJSON(path.join(directory, '3042-1.response.json'), {
     body: html,
     bodyHash: hash(html),
@@ -104,6 +125,7 @@ test('atomic response envelope reconstructs HTML after interrupted HTML write', 
     fetchedAt: '2026-11-15T00:00:00Z',
     url: 'https://www.kanjipedia.jp/search?k=あ&wy=1&sk=leftHand',
   });
+
   assert.equal((await processRun(run, directory, null)).complete, true);
   assert.equal(
     await fs.readFile(path.join(directory, '3042-1.html'), 'utf8'),
@@ -111,13 +133,15 @@ test('atomic response envelope reconstructs HTML after interrupted HTML write', 
   );
 });
 
-test('invalid recovery envelope fails without recreating HTML or fetching', async () => {
+test('復元用の応答一式が不正ならHTMLの復元や再取得をせず停止する', async () => {
   const directory = await temporary();
   const run = createRun(plan);
+
   await writeJSON(path.join(directory, '3042-1.response.json'), {
     body: searchFixture(),
     bodyHash: 'wrong',
   });
+
   await assert.rejects(
     processRun(run, directory, null),
     /Saved envelope hash mismatch/,
@@ -125,39 +149,52 @@ test('invalid recovery envelope fails without recreating HTML or fetching', asyn
   await assert.rejects(fs.access(path.join(directory, '3042-1.html')), {
     code: 'ENOENT',
   });
+
   const saved = await readJSON(path.join(directory, 'run.json'));
+
   assert.equal(saved.queue[0].state, 'failed');
   assert.equal(saved.queue[0].attempts, 0);
   assert.equal(saved.complete, false);
 });
 
-test('offline reparse leaves pages without saved evidence pending', async () => {
+test('オフライン再解析では保存証跡のないページを未処理のまま残す', async () => {
   const directory = await temporary();
   const run = createRun(plan);
   const report = await processRun(run, directory, null, { reparse: true });
+
   assert.equal(report.complete, false);
   assert.deepEqual(report.prefixes[0].missingPages, [1]);
+
   const saved = await readJSON(path.join(directory, 'run.json'));
+
   assert.equal(saved.queue[0].state, 'pending');
   assert.equal(saved.queue[0].attempts, 0);
 });
-test('corrupt saved HTML fails closed; orphan temporary write does not replace valid state', async () => {
+
+test('保存HTMLの破損で安全側に停止し、中断した一時ファイルは正常な状態を上書きしない', async () => {
   const directory = await temporary(),
     file = path.join(directory, 'state.json');
+
   await writeJSON(file, { valid: true });
   await fs.writeFile(`${file}.interrupted.tmp`, '{');
+
   assert.deepEqual(await readJSON(file), { valid: true });
+
   await atomicWrite(path.join(directory, '3042-1.html'), searchFixture());
   await writeJSON(path.join(directory, '3042-1.response.json'), {
     bodyHash: 'wrong',
   });
+
   const run = createRun(plan);
+
   await assert.rejects(processRun(run, directory, null), /hash mismatch/);
   assert.equal(run.complete, false);
 });
-test('pagination infers unseen pages beyond visible pager window; rejects total drift and duplicate body', () => {
+
+test('表示範囲外のページも推定し、総件数の変動と本文の重複を拒否する', () => {
   const run = createRun(plan),
     job = run.queue[0];
+
   job.bodyHash = 'one';
   acceptPage(run, job, {
     total: 30,
@@ -167,9 +204,13 @@ test('pagination infers unseen pages beyond visible pager window; rejects total 
     records: [],
     diagnostics: [],
   });
+
   assert.equal(run.queue.length, 15);
+
   const second = run.queue[1];
+
   second.bodyHash = 'one';
+
   assert.throws(
     () =>
       acceptPage(run, second, {
@@ -180,7 +221,9 @@ test('pagination infers unseen pages beyond visible pager window; rejects total 
       }),
     /Repeated/,
   );
+
   second.bodyHash = 'two';
+
   assert.throws(
     () =>
       acceptPage(run, second, {
@@ -192,9 +235,11 @@ test('pagination infers unseen pages beyond visible pager window; rejects total 
     /total changed/,
   );
 });
-test('missing pages and count mismatch cannot be complete', () => {
+
+test('欠落ページや件数の不一致があれば収集完了にしない', () => {
   const run = createRun(plan),
     job = run.queue[0];
+
   job.bodyHash = 'one';
   acceptPage(run, job, {
     total: 2,
@@ -204,9 +249,13 @@ test('missing pages and count mismatch cannot be complete', () => {
     records: [{ path: '/kotoba/0005614200' }],
     diagnostics: [],
   });
+
   assert.deepEqual(reportRun(run).prefixes[0].missingPages, [2]);
+
   const last = run.queue[1];
+
   last.bodyHash = 'two';
+
   assert.throws(
     () =>
       acceptPage(run, last, {
@@ -220,21 +269,27 @@ test('missing pages and count mismatch cannot be complete', () => {
     /unique URLs/,
   );
 });
-test('incomplete export cannot overwrite a complete published generation', async () => {
+
+test('未完了の出力では完成した世代の参照を上書きしない', async () => {
   const directory = await temporary(),
     run = createRun(plan);
   const { gate } = fakeGate([searchFixture()]);
+
   await processRun(run, path.join(directory, 'run'), gate);
+
   const exported = await exportRun(run, path.join(directory, 'data'));
   const pointer = await readJSON(path.join(directory, 'data/current.json'));
   const incomplete = createRun(plan);
+
   await assert.rejects(
     exportRun(incomplete, path.join(directory, 'data')),
     /Incomplete/,
   );
+
   const partial = await exportRun(incomplete, path.join(directory, 'data'), {
     partial: true,
   });
+
   assert.equal(partial.complete, false);
   assert.deepEqual(
     await readJSON(path.join(directory, 'data/current.json')),
@@ -245,28 +300,39 @@ test('incomplete export cannot overwrite a complete published generation', async
     hash(await fs.readFile(path.join(exported.directory, 'dictionary.json'))),
   );
 });
-test('process lock rejects a second collector; release permits next collector', async () => {
+
+test('プロセスロックで二重収集を拒否し、解放後は次の収集を許可する', async () => {
   const directory = await temporary();
   const release = await acquireLock(directory);
+
   await assert.rejects(acquireLock(directory), /already running/);
+
   await release();
+
   const nextRelease = await acquireLock(directory);
+
   await nextRelease();
 });
-test('retry counters survive failures and cap at three; all HTTP attempts count', async () => {
+
+test('失敗後も試行回数を保持して3回で打ち切り、すべてのHTTP要求を計上する', async () => {
   const directory = await temporary(),
     run = createRun(plan);
   const bodies = ['fail', 'fail', 'fail'];
+
   bodies.status = 500;
+
   const { gate, calls } = fakeGate(bodies);
+
   await assert.rejects(processRun(run, directory, gate), /Three consecutive/);
   assert.equal(calls(), 3);
-  assert.equal(gate.state.count, 4); // robots + failures
+  assert.equal(gate.state.count, 4); // robots取得と失敗した要求の合計
   assert.equal(run.queue[0].attempts, 3);
   assert.equal(run.queue[0].httpAttempts, 3);
+
   const events = gate.state.events.filter(
     (event) => !event.url.endsWith('/robots.txt'),
   );
+
   assert.equal(
     Date.parse(events[1].fetchedAt) - Date.parse(events[0].fetchedAt),
     60_000,

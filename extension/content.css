@@ -1,4 +1,4 @@
-/* Keep the site's typography and spacing; highlight only links in 下つき. */
+/* サイトの書体と余白を保ち、下つきのリンクだけを強調する。 */
 p[data-kanjipedia-shitatsuki='1'] > a[href] {
   background-color: #d6e9fa;
   border-radius: 2px;

@@ -30,6 +30,6 @@ export default defineConfig([
     files: ['shared/**/*.js'],
     languageOptions: { globals: { URL: 'readonly' } },
   },
-  // Keep this last so formatting rules cannot conflict with Prettier.
+  // 整形ルールがPrettierと競合しないよう、最後に適用する。
   prettier,
 ]);

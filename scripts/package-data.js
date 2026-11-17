@@ -6,7 +6,7 @@ import { buildExtension } from './build.js';
 import { root, validateDictionary } from './dictionary.js';
 import { atomicWrite, hash, readJSON, writeJSON } from '../collector/store.js';
 
-// Ship only the minimal mapping and collection summary; raw evidence stays local.
+// 生の証跡を配布に混入させないよう、対応表と収集範囲の要約だけを出力する。
 export async function packageData(
   input,
   {
@@ -19,8 +19,10 @@ export async function packageData(
   const source = await readJSON(
     path.join(path.dirname(input), 'manifest.json'),
   );
+
   if (source.sha256 !== hash(body))
     throw new Error('Source manifest hash mismatch');
+
   const manifest = {
     schemaVersion: dictionary.schemaVersion,
     parserVersion: source.parserVersion,
@@ -39,8 +41,10 @@ export async function packageData(
     source: 'https://www.kanjipedia.jp',
     redistribution: 'github-only-user-approved',
   };
+
   await atomicWrite(path.join(directory, 'dictionary.json'), body);
   await writeJSON(path.join(directory, 'manifest.json'), manifest);
+
   return {
     ...(await buildExtension({
       input: path.join(directory, 'dictionary.json'),
@@ -57,10 +61,12 @@ if (
 ) {
   try {
     const { values } = parseArgs({ options: { input: { type: 'string' } } });
+
     if (!values.input)
       throw new Error(
         'Usage: node scripts/package-data.js --input DICTIONARY_JSON',
       );
+
     console.log(JSON.stringify(await packageData(values.input), null, 2));
   } catch (error) {
     console.error(error.message);
