@@ -286,3 +286,69 @@ test('balanced multiple readings; existing links, nested elements, missing secti
     }
   }
 });
+
+test('unverified section structures leave the entire document unchanged', () => {
+  const dictionary = stableDictionary([record()]);
+  for (const change of [
+    (doc) => doc.querySelector('h4 img').remove(),
+    (doc) =>
+      doc.body.append(doc.querySelector('img[alt="下つき"]').cloneNode()),
+    (doc) => {
+      const heading = doc.querySelector('img[alt="下つき"]').parentElement;
+      heading.replaceWith(...heading.childNodes);
+    },
+    (doc) =>
+      doc.getElementById('target').parentElement.append(doc.createElement('p')),
+    (doc) =>
+      doc
+        .getElementById('target')
+        .closest('li')
+        .append(doc.createElement('div')),
+    (doc) => doc.getElementById('target').append(doc.createElement('em')),
+  ]) {
+    const dom = domFor();
+    try {
+      const doc = dom.window.document;
+      change(doc);
+      const before = doc.documentElement.outerHTML;
+      assert.equal(linkDocument(doc, dictionary), 0);
+      assert.equal(doc.documentElement.outerHTML, before);
+    } finally {
+      dom.window.close();
+    }
+  }
+});
+
+test('multiple replacements preserve existing nodes and never span separate text nodes', () => {
+  const dom = domFor();
+  try {
+    const doc = dom.window.document;
+    const p = doc.getElementById('target');
+    const dictionary = stableDictionary([
+      record(),
+      record('/kotoba/0000000001', 'トウア', '東亜'),
+    ]);
+    p.innerHTML =
+      ' 白亜(ハクア) ・東亜(トウア)・<a href="/existing">白亜</a>(ハクア)';
+    const existing = p.querySelector('a');
+    const text = p.textContent;
+    assert.equal(linkDocument(doc, dictionary), 2);
+    assert.deepEqual(
+      [...p.querySelectorAll('a[data-kanjipedia-link]')].map(
+        (a) => a.textContent,
+      ),
+      ['白亜(ハクア)', '東亜(トウア)'],
+    );
+    assert.equal(p.textContent, text);
+    assert.equal(p.querySelector('a[href="/existing"]'), existing);
+    assert.equal(linkDocument(doc, dictionary), 0);
+    p.replaceChildren(
+      doc.createTextNode('白亜'),
+      doc.createTextNode('(ハクア)'),
+    );
+    assert.equal(linkDocument(doc, dictionary), 0);
+    assert.equal(p.childNodes.length, 2);
+  } finally {
+    dom.window.close();
+  }
+});

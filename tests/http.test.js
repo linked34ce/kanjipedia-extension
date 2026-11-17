@@ -200,3 +200,20 @@ test('robots cache expires after 24 hours and supports an explicit refresh', asy
   await gate.ensureRobots(origin);
   assert.equal(starts.length, 2);
 });
+
+test('robots retries persist the same backoff before each subsequent request', async () => {
+  const { gate, starts, saves } = mockGate([
+    { status: 500 },
+    { status: 503 },
+    { body: 'User-agent:*\nDisallow:' },
+  ]);
+  delete gate.state.robots;
+  await gate.ensureRobots(origin);
+  assert.equal(starts.length, 3);
+  assert.equal(starts[1].at - starts[0].at, 62_000);
+  assert.equal(starts[2].at - starts[1].at, 182_000);
+  assert.ok(saves.some((state) => state.nextAt === starts[1].at));
+  assert.ok(saves.some((state) => state.nextAt === starts[2].at));
+  assert.equal(gate.state.count, 3);
+  assert.equal(gate.state.consecutiveFailures, 0);
+});

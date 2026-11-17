@@ -110,6 +110,37 @@ test('atomic response envelope reconstructs HTML after interrupted HTML write', 
     html,
   );
 });
+
+test('invalid recovery envelope fails without recreating HTML or fetching', async () => {
+  const directory = await temporary();
+  const run = createRun(plan);
+  await writeJSON(path.join(directory, '3042-1.response.json'), {
+    body: searchFixture(),
+    bodyHash: 'wrong',
+  });
+  await assert.rejects(
+    processRun(run, directory, null),
+    /Saved envelope hash mismatch/,
+  );
+  await assert.rejects(fs.access(path.join(directory, '3042-1.html')), {
+    code: 'ENOENT',
+  });
+  const saved = await readJSON(path.join(directory, 'run.json'));
+  assert.equal(saved.queue[0].state, 'failed');
+  assert.equal(saved.queue[0].attempts, 0);
+  assert.equal(saved.complete, false);
+});
+
+test('offline reparse leaves pages without saved evidence pending', async () => {
+  const directory = await temporary();
+  const run = createRun(plan);
+  const report = await processRun(run, directory, null, { reparse: true });
+  assert.equal(report.complete, false);
+  assert.deepEqual(report.prefixes[0].missingPages, [1]);
+  const saved = await readJSON(path.join(directory, 'run.json'));
+  assert.equal(saved.queue[0].state, 'pending');
+  assert.equal(saved.queue[0].attempts, 0);
+});
 test('corrupt saved HTML fails closed; orphan temporary write does not replace valid state', async () => {
   const directory = await temporary(),
     file = path.join(directory, 'state.json');
