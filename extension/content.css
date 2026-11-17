@@ -1,5 +1,5 @@
 /* Keep the site's typography and spacing; highlight only links in 下つき. */
-p[data-kanjipedia-shitatsuki="1"] > a[href] {
+p[data-kanjipedia-shitatsuki='1'] > a[href] {
   background-color: #d6e9fa;
   border-radius: 2px;
   text-decoration-line: underline;
@@ -9,12 +9,12 @@ p[data-kanjipedia-shitatsuki="1"] > a[href] {
   box-decoration-break: clone;
 }
 
-p[data-kanjipedia-shitatsuki="1"] > a[href]:hover,
-p[data-kanjipedia-shitatsuki="1"] > a[href]:focus-visible {
+p[data-kanjipedia-shitatsuki='1'] > a[href]:hover,
+p[data-kanjipedia-shitatsuki='1'] > a[href]:focus-visible {
   background-color: #bedaf3;
 }
 
-p[data-kanjipedia-shitatsuki="1"] > a[href]:focus-visible {
+p[data-kanjipedia-shitatsuki='1'] > a[href]:focus-visible {
   outline: 2px solid #4e7ca6;
   outline-offset: 2px;
 }

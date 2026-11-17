@@ -3,11 +3,13 @@
   "name": "漢字ペディア 下つきリンク補完",
   "version": "0.1.0",
   "description": "同梱の対応表で確定できる下つき語を既存の言葉項目へリンクします。",
-  "content_scripts": [{
-    "matches": ["https://www.kanjipedia.jp/kanji/*"],
-    "js": ["data.js", "content.js"],
-    "css": ["content.css"],
-    "run_at": "document_idle",
-    "all_frames": false
-  }]
+  "content_scripts": [
+    {
+      "matches": ["https://www.kanjipedia.jp/kanji/*"],
+      "js": ["data.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
 }

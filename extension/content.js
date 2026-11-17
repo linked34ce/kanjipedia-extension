@@ -21,7 +21,8 @@
   }
   function readingKey(value) {
     let text = value.trim();
-    if (text.startsWith("(") && text.endsWith(")") || text.startsWith("\uFF08") && text.endsWith("\uFF09")) text = text.slice(1, -1);
+    if (text.startsWith("(") && text.endsWith(")") || text.startsWith("\uFF08") && text.endsWith("\uFF09"))
+      text = text.slice(1, -1);
     return text.normalize("NFC").replace(
       /[ぁ-ゖ]/gu,
       (char) => String.fromCodePoint(char.codePointAt(0) + 96)
@@ -32,8 +33,17 @@
     if (!Object.hasOwn(dictionary.entries, key)) return null;
     const candidates = dictionary.entries[key];
     if (!Array.isArray(candidates)) return null;
-    const paths = new Set(candidates.filter((item) => safePath(item.path) && (!readings.length || readings.map(readingKey).includes(item.reading))).map((item) => item.path));
-    if (readings.some((reading) => !candidates.some((item) => item.reading === readingKey(reading) && safePath(item.path)))) return null;
+    const paths = new Set(
+      candidates.filter(
+        (item) => safePath(item.path) && (!readings.length || readings.map(readingKey).includes(item.reading))
+      ).map((item) => item.path)
+    );
+    if (readings.some(
+      (reading) => !candidates.some(
+        (item) => item.reading === readingKey(reading) && safePath(item.path)
+      )
+    ))
+      return null;
     return paths.size === 1 ? [...paths][0] : null;
   }
 
@@ -56,11 +66,14 @@
     return parts;
   }
   function parseSegment(part) {
-    const match = /^(\s*)([^()（）]+?)(?:\s*[(（]([^()（）]+)[)）])?\s*$/u.exec(part.text);
+    const match = /^(\s*)([^()（）]+?)(?:\s*[(（]([^()（）]+)[)）])?\s*$/u.exec(
+      part.text
+    );
     if (!match) return null;
     const heading = match[2].trimEnd();
     const readings = match[3] ? match[3].split(/[・、／/]/u).map((s) => s.trim()) : [];
-    if (readings.some((s) => !s || !/^(?:[ぁ-ゖァ-ヺー]|\u3099|\u309a)+$/u.test(s))) return null;
+    if (readings.some((s) => !s || !/^(?:[ぁ-ゖァ-ヺー]|\u3099|\u309a)+$/u.test(s)))
+      return null;
     return {
       heading,
       readings,
@@ -69,21 +82,28 @@
     };
   }
   function linkDocument(document2, dictionary) {
-    if (document2.location.origin !== ORIGIN || !/^\/kanji\/\d{10}$/.test(document2.location.pathname)) return 0;
+    if (document2.location.origin !== ORIGIN || !/^\/kanji\/\d{10}$/.test(document2.location.pathname))
+      return 0;
     const headings = [...document2.querySelectorAll('img[alt="\u4E0B\u3064\u304D"]')];
     if (headings.length !== 1) return 0;
     const heading = headings[0];
     const li = heading.closest("li");
-    if (!li || heading.parentElement.tagName !== "H4" || heading.parentElement.parentElement !== li) return 0;
+    if (!li || heading.parentElement.tagName !== "H4" || heading.parentElement.parentElement !== li)
+      return 0;
     const divs = [...li.children].filter((n) => n.tagName === "DIV");
-    if (divs.length !== 1 || divs[0].children.length !== 1 || divs[0].firstElementChild.tagName !== "P") return 0;
+    if (divs.length !== 1 || divs[0].children.length !== 1 || divs[0].firstElementChild.tagName !== "P")
+      return 0;
     const p = divs[0].firstElementChild;
     if ([...p.children].some((n) => n.tagName !== "A")) return 0;
     const text = p.textContent;
     const offsets = [];
     let offset = 0;
     for (const node of p.childNodes) {
-      offsets.push({ node, start: offset, end: offset + node.textContent.length });
+      offsets.push({
+        node,
+        start: offset,
+        end: offset + node.textContent.length
+      });
       offset += node.textContent.length;
     }
     let count = 0;
@@ -91,9 +111,13 @@
       const parsed = parseSegment(segment);
       if (!parsed) continue;
       const end = parsed.start + parsed.length;
-      const span = offsets.filter((item) => item.end > segment.start && item.start < segment.start + segment.text.length);
+      const span = offsets.filter(
+        (item) => item.end > segment.start && item.start < segment.start + segment.text.length
+      );
       if (span.some((item) => item.node.nodeType !== 3)) continue;
-      const containing = offsets.find((item) => item.node.nodeType === 3 && parsed.start >= item.start && end <= item.end);
+      const containing = offsets.find(
+        (item) => item.node.nodeType === 3 && parsed.start >= item.start && end <= item.end
+      );
       if (!containing) continue;
       const path = chooseCandidate(dictionary, parsed.heading, parsed.readings);
       if (!path) continue;
@@ -112,6 +136,9 @@
   if (typeof document !== "undefined" && globalThis.__KANJIPEDIA_DATA__) {
     const start = performance.now();
     const count = linkDocument(document, globalThis.__KANJIPEDIA_DATA__);
-    globalThis.__KANJIPEDIA_METRICS__ = { count, durationMs: performance.now() - start };
+    globalThis.__KANJIPEDIA_METRICS__ = {
+      count,
+      durationMs: performance.now() - start
+    };
   }
 })();

@@ -2,8 +2,9 @@ import { acquireLock } from '../../collector/store.js';
 
 process.once('message', async () => {
   let release;
-  try { release = await acquireLock(process.argv[2]); }
-  catch (error) {
+  try {
+    release = await acquireLock(process.argv[2]);
+  } catch (error) {
     process.send({ type: 'result', acquired: false, error: error.message });
     process.disconnect();
     return;

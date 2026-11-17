@@ -8,9 +8,13 @@ import { ORIGIN, chooseCandidate } from '../shared/core.js';
 import { linkDocument } from '../extension/source.js';
 
 const input = process.argv[2];
-if (!input) throw new Error('Usage: node scripts/verify-local.js DICTIONARY_JSON');
+if (!input)
+  throw new Error('Usage: node scripts/verify-local.js DICTIONARY_JSON');
 const dictionary = await validateDictionary(await readJSON(input));
-assert.equal(chooseCandidate(dictionary, '白亜', ['ハクア']), '/kotoba/0005614200');
+assert.equal(
+  chooseCandidate(dictionary, '白亜', ['ハクア']),
+  '/kotoba/0005614200',
+);
 const survey = path.join(root, '.local/survey');
 let evidence;
 for (const name of await fs.readdir(survey)) {
@@ -36,15 +40,26 @@ try {
   await atomicWrite(path.join(root, '.local/acceptance.html'), fragmentHTML);
   const count = linkDocument(doc, dictionary);
   assert.equal(p.textContent, before);
-  const white = [...p.querySelectorAll('a')].find(a => a.textContent === '白亜(ハクア)');
+  const white = [...p.querySelectorAll('a')].find(
+    (a) => a.textContent === '白亜(ハクア)',
+  );
   assert.equal(white?.href, `${ORIGIN}/kotoba/0005614200`);
   assert.equal(linkDocument(doc, dictionary), 0);
   const afterOutside = doc.body.cloneNode(true);
   afterOutside.querySelector('img[alt="下つき"]').closest('li').remove();
   assert.equal(afterOutside.outerHTML, originalOutside);
-  const report = { verified: true, count, preservedText: before, sourceURL: evidence.url,
-    sourceSHA256: evidence.bodyHash, dictionarySHA256: hash(await fs.readFile(input)),
-    sourceKind: 'saved live HTML; no network or external scripts executed', manualLiveCheck: false };
+  const report = {
+    verified: true,
+    count,
+    preservedText: before,
+    sourceURL: evidence.url,
+    sourceSHA256: evidence.bodyHash,
+    dictionarySHA256: hash(await fs.readFile(input)),
+    sourceKind: 'saved live HTML; no network or external scripts executed',
+    manualLiveCheck: false,
+  };
   await writeJSON(path.join(root, 'artifacts/local-acceptance.json'), report);
   console.log(JSON.stringify(report, null, 2));
-} finally { dom.window.close(); }
+} finally {
+  dom.window.close();
+}
