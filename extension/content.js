@@ -81,24 +81,26 @@
       length: part.text.trimEnd().length - match[1].length
     };
   }
-  function linkDocument(document2, dictionary) {
+  function findTargetParagraph(document2) {
     if (document2.location.origin !== ORIGIN || !/^\/kanji\/\d{10}$/.test(document2.location.pathname))
-      return 0;
+      return null;
     const headings = [...document2.querySelectorAll('img[alt="\u4E0B\u3064\u304D"]')];
-    if (headings.length !== 1) return 0;
+    if (headings.length !== 1) return null;
     const heading = headings[0];
     const li = heading.closest("li");
     if (!li || heading.parentElement.tagName !== "H4" || heading.parentElement.parentElement !== li)
-      return 0;
+      return null;
     const divs = [...li.children].filter((n) => n.tagName === "DIV");
     if (divs.length !== 1 || divs[0].children.length !== 1 || divs[0].firstElementChild.tagName !== "P")
-      return 0;
+      return null;
     const p = divs[0].firstElementChild;
-    if ([...p.children].some((n) => n.tagName !== "A")) return 0;
-    const text = p.textContent;
+    if ([...p.children].some((n) => n.tagName !== "A")) return null;
+    return p;
+  }
+  function childTextOffsets(paragraph) {
     const offsets = [];
     let offset = 0;
-    for (const node of p.childNodes) {
+    for (const node of paragraph.childNodes) {
       offsets.push({
         node,
         start: offset,
@@ -106,28 +108,43 @@
       });
       offset += node.textContent.length;
     }
+    return offsets;
+  }
+  function containingTextNode(offsets, segment, parsed) {
+    const span = offsets.filter(
+      (item) => item.end > segment.start && item.start < segment.start + segment.text.length
+    );
+    if (span.some((item) => item.node.nodeType !== 3)) return null;
+    return offsets.find(
+      (item) => item.node.nodeType === 3 && parsed.start >= item.start && parsed.start + parsed.length <= item.end
+    );
+  }
+  function surroundLink(document2, containing, parsed, path) {
+    const range = document2.createRange();
+    range.setStart(containing.node, parsed.start - containing.start);
+    range.setEnd(
+      containing.node,
+      parsed.start + parsed.length - containing.start
+    );
+    const a = document2.createElement("a");
+    a.href = new URL(path, ORIGIN).href;
+    a.dataset.kanjipediaLink = "1";
+    range.surroundContents(a);
+  }
+  function linkDocument(document2, dictionary) {
+    const p = findTargetParagraph(document2);
+    if (!p) return 0;
+    const text = p.textContent;
+    const offsets = childTextOffsets(p);
     let count = 0;
     for (const segment of segments(text).reverse()) {
       const parsed = parseSegment(segment);
       if (!parsed) continue;
-      const end = parsed.start + parsed.length;
-      const span = offsets.filter(
-        (item) => item.end > segment.start && item.start < segment.start + segment.text.length
-      );
-      if (span.some((item) => item.node.nodeType !== 3)) continue;
-      const containing = offsets.find(
-        (item) => item.node.nodeType === 3 && parsed.start >= item.start && end <= item.end
-      );
+      const containing = containingTextNode(offsets, segment, parsed);
       if (!containing) continue;
       const path = chooseCandidate(dictionary, parsed.heading, parsed.readings);
       if (!path) continue;
-      const range = document2.createRange();
-      range.setStart(containing.node, parsed.start - containing.start);
-      range.setEnd(containing.node, end - containing.start);
-      const a = document2.createElement("a");
-      a.href = new URL(path, ORIGIN).href;
-      a.dataset.kanjipediaLink = "1";
-      range.surroundContents(a);
+      surroundLink(document2, containing, parsed, path);
       count++;
     }
     if (p.querySelector("a[href]")) p.dataset.kanjipediaShitatsuki = "1";
