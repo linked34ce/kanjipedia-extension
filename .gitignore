@@ -1,0 +1,7 @@
+node_modules/
+.local/
+artifacts/
+data/*
+!data/dictionary.schema.json
+!data/published/
+playwright-report/

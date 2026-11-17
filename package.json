@@ -1,0 +1,37 @@
+{
+  "name": "kanjipedia-shitatsuki-links",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser.js",
+    "build": "node collector/cli.js build",
+    "package:data": "node scripts/package-data.js",
+    "validate": "node collector/cli.js validate",
+    "collect": "node collector/cli.js collect",
+    "survey": "node collector/cli.js survey",
+    "reparse": "node collector/cli.js reparse",
+    "report": "node collector/cli.js report"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "jsdom": "29.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "esbuild": "0.28.2",
+    "eslint": "10.15.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.14.0",
+    "playwright": "1.65.1",
+    "prettier": "3.10.1"
+  }
+}

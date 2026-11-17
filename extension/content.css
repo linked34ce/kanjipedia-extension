@@ -1,0 +1,20 @@
+/* サイトの書体と余白を保ち、下つきのリンクだけを強調する。 */
+p[data-kanjipedia-shitatsuki='1'] > a[href] {
+  background-color: #d6e9fa;
+  border-radius: 2px;
+  text-decoration-line: underline;
+  text-decoration-color: #729ac0;
+  text-underline-offset: 0.12em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+p[data-kanjipedia-shitatsuki='1'] > a[href]:hover,
+p[data-kanjipedia-shitatsuki='1'] > a[href]:focus-visible {
+  background-color: #bedaf3;
+}
+
+p[data-kanjipedia-shitatsuki='1'] > a[href]:focus-visible {
+  outline: 2px solid #4e7ca6;
+  outline-offset: 2px;
+}

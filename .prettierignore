@@ -1,0 +1,11 @@
+# ローカルデータとビルド・テスト出力は.gitignoreでも除外する。
+.agents/
+
+# 生成ファイルとハッシュ検証済みの公開用スナップショット。
+package-lock.json
+extension/content.js
+extension/data.js
+data/published/
+
+# ブラウザ用HTMLフィクスチャの空白を保持する。
+tests/fixtures/*.html
