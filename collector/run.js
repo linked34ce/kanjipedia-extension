@@ -178,7 +178,14 @@ export function acceptPage(run, job, parsed) {
     throw new Stop('Page rows/unique URLs do not account for total');
   }
 
-  run.complete = reportRun(run).complete;
+  if (report.conflicts.length) {
+    job.state = 'failed';
+    run.complete = false;
+
+    throw new Stop(`Conflicting item data: ${report.conflicts.join(', ')}`);
+  }
+
+  run.complete = report.complete;
 }
 
 export async function processRun(
@@ -196,6 +203,15 @@ export async function processRun(
         job.state = 'inflight';
         delete job.parsed;
       }
+  }
+
+  const conflicts = reportRun(run).conflicts;
+
+  if (conflicts.length) {
+    run.complete = false;
+    await save();
+
+    throw new Stop(`Conflicting item data: ${conflicts.join(', ')}`);
   }
 
   for (let index = 0; index < run.queue.length; index++) {
@@ -305,7 +321,10 @@ export function reportRun(run) {
   const byPath = new Map(),
     conflicts = [];
 
-  for (const record of records) {
+  // 停止したページの解析結果も照合し、再開や部分出力で矛盾の記録を失わないようにする。
+  const conflictRecords = run.queue.flatMap((j) => j.parsed?.records ?? []);
+
+  for (const record of conflictRecords) {
     const signature = JSON.stringify([record.variants, record.reading]);
 
     if (

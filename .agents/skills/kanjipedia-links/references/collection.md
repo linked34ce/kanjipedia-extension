@@ -66,7 +66,7 @@ HTMLとヘッダーはローカル調査用に保存し、公開リポジトリ�
 }
 ```
 
-内部recordsはpath、rawHeading、rawReading、variants、正規化済みreading、出典の検索URL・ページ・取得時刻・本文ハッシュを保持する。同じvariant／reading／pathは集合として統合する。異なるURLは上書きしない。同一URLで見出しや読みが矛盾したら診断を残す。
+内部recordsはpath、rawHeading、rawReading、variants、正規化済みreading、出典の検索URL・ページ・取得時刻・本文ハッシュを保持する。同じvariant／reading／pathは集合として統合する。異なるURLは上書きしない。同一URLで見出しや読みが矛盾したら応答・解析結果・停止理由を保存して即停止し、後続を取得しない。失敗ページの解析結果も矛盾検出に使い、再開時の停止と部分辞書からの矛盾URL除外を維持する。
 
 生成はキー、候補を固定順に並べ、UTF-8、安定した改行で出力する。時刻を含まない辞書本体は同じ入力から同じバイト列にする。manifestに辞書SHA-256、runId、スキーマ・解析器バージョン、収集期間、接頭辞範囲、欠落・衝突・未解釈件数とcompleteを記録する。JSON Schemaで型、必須項目、path形式を検証する。`__proto__` 等のキーにも安全なMapまたはown-property参照を使う。
 

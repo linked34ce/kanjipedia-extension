@@ -344,3 +344,125 @@ test('失敗後も試行回数を保持して3回で打ち切り、すべてのH
   await assert.rejects(processRun(run, directory, gate), /Exhausted page/);
   assert.equal(calls(), 3);
 });
+
+test('同一URLの見出し・読みの矛盾で後続取得を止め、再開・再解析・部分出力でも矛盾を保持する', async () => {
+  for (const [heading, reading] of [
+    ['白堊', 'ハクア'],
+    ['白亜', 'ア'],
+  ]) {
+    const directory = await temporary();
+    const run = createRun(['あ', 'か', 'さ'].map((prefix) => ({ prefix })));
+    const { gate, calls } = fakeGate([
+      searchFixture(),
+      searchFixture({ prefix: 'か', rows: row(heading, reading) }),
+      searchFixture({ prefix: 'さ' }),
+    ]);
+    const stopped = (error) => {
+      assert.equal(error.code, 3);
+      assert.match(error.message, /Conflicting item data.*0005614200/);
+
+      return true;
+    };
+
+    await assert.rejects(processRun(run, directory, gate), stopped);
+    assert.equal(calls(), 2, '矛盾が確定した後は次の検索ページを取得しない');
+
+    const saved = await readJSON(path.join(directory, 'run.json'));
+
+    assert.equal(saved.complete, false);
+    assert.deepEqual(
+      saved.queue.map((job) => job.state),
+      ['done', 'failed', 'pending'],
+    );
+    assert.match(saved.queue[1].error, /Conflicting item data/);
+    assert.equal(saved.queue[1].parsed.records[0].reading, reading);
+    assert.deepEqual(reportRun(saved).conflicts, ['/kotoba/0005614200']);
+
+    await assert.rejects(processRun(saved, directory, gate), stopped);
+    await assert.rejects(
+      processRun(saved, directory, null, { reparse: true }),
+      stopped,
+    );
+    assert.equal(calls(), 2, '再開やオフライン再解析でも追加取得しない');
+
+    await assert.rejects(exportRun(saved, path.join(directory, 'data')), {
+      code: 2,
+    });
+
+    const partial = await exportRun(saved, path.join(directory, 'data'), {
+      partial: true,
+    });
+    const dictionary = await readJSON(
+      path.join(partial.directory, 'dictionary.json'),
+    );
+
+    assert.equal(partial.complete, false);
+    assert.deepEqual(partial.conflicts, ['/kotoba/0005614200']);
+    assert.deepEqual(
+      dictionary.entries,
+      {},
+      '先に取得した候補も含めて除外する',
+    );
+  }
+});
+
+test('同じ接頭辞の途中ページで矛盾した場合も末尾ページの取得前に停止する', async () => {
+  const directory = await temporary();
+  const run = createRun(plan);
+  const { gate, calls } = fakeGate([
+    searchFixture({ total: 3, last: 3 }),
+    searchFixture({ page: 2, total: 3, last: 3, rows: row('白堊') }),
+    searchFixture({ page: 3, total: 3, last: 3 }),
+  ]);
+
+  await assert.rejects(processRun(run, directory, gate), {
+    code: 3,
+    message: 'Conflicting item data: /kotoba/0005614200',
+  });
+  assert.equal(calls(), 2);
+  assert.deepEqual(
+    reportRun(await readJSON(path.join(directory, 'run.json'))).conflicts,
+    ['/kotoba/0005614200'],
+  );
+});
+
+test('旧実装で保存した矛盾のあるrunも再開時に取得前に停止する', async () => {
+  const directory = await temporary();
+  const run = createRun(['あ', 'か', 'さ'].map((prefix) => ({ prefix })));
+
+  for (const [index, heading] of ['白亜', '白堊'].entries()) {
+    const job = run.queue[index];
+
+    job.state = 'done';
+    job.parsed = extractSearch(
+      searchFixture({ prefix: job.prefix, rows: row(heading) }),
+      { prefix: job.prefix, page: 1 },
+    );
+  }
+
+  const { gate, calls } = fakeGate([searchFixture({ prefix: 'さ' })]);
+
+  await assert.rejects(processRun(run, directory, gate), {
+    code: 3,
+  });
+  assert.equal(calls(), 0);
+  assert.equal(gate.used, 0, 'robotsを含むHTTP要求を一切送らない');
+  assert.deepEqual(
+    reportRun(await readJSON(path.join(directory, 'run.json'))).conflicts,
+    ['/kotoba/0005614200'],
+  );
+});
+
+test('別の接頭辞に現れる同一URLでも見出しと読みが一致すれば収集を続ける', async () => {
+  const directory = await temporary();
+  const run = createRun(['あ', 'か', 'さ'].map((prefix) => ({ prefix })));
+  const { gate, calls } = fakeGate(
+    ['あ', 'か', 'さ'].map((prefix) => searchFixture({ prefix })),
+  );
+  const report = await processRun(run, directory, gate);
+
+  assert.equal(calls(), 3);
+  assert.equal(report.complete, true);
+  assert.deepEqual(report.conflicts, []);
+  assert.equal(report.uniqueURLs, 1);
+});
