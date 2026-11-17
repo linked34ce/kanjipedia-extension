@@ -7,7 +7,7 @@ import { safePath, headingKey, readingKey, ORIGIN } from '../shared/core.js';
 
 // A deliberate, exact-row review. Nothing is guessed for other paths or headings.
 export async function reviewVariants(directory, itemPath, variants) {
-  if (!safePath(itemPath) || !/^\/kotoba\/\d{10}$/.test(itemPath) || variants.length < 2 ||
+  if (!safePath(itemPath) || !/^\/kotoba\/\d{10,11}$/.test(itemPath) || variants.length < 2 ||
       variants.some(v => !v || /[・<>\s]/u.test(v))) throw new Error('Invalid reviewed variants');
   let search, article;
   for (const file of await fs.readdir(directory)) {

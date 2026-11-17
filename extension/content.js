@@ -5,7 +5,7 @@
     if (typeof value !== "string") return null;
     try {
       const url = new URL(value, ORIGIN);
-      return url.origin === ORIGIN && !url.username && !url.password && !url.search && !url.hash && /^\/kotoba\/\d{10}$/.test(url.pathname) ? url.pathname : null;
+      return url.origin === ORIGIN && !url.username && !url.password && !url.search && !url.hash && /^\/kotoba\/\d{10,11}$/.test(url.pathname) ? url.pathname : null;
     } catch {
       return null;
     }

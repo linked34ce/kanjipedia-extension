@@ -1,12 +1,12 @@
 export const ORIGIN = 'https://www.kanjipedia.jp';
-export const PARSER_VERSION = '1.0.0';
+export const PARSER_VERSION = '1.1.0';
 
 export function safePath(value) {
   if (typeof value !== 'string') return null;
   try {
     const url = new URL(value, ORIGIN);
     return url.origin === ORIGIN && !url.username && !url.password &&
-      !url.search && !url.hash && /^\/kotoba\/\d{10}$/.test(url.pathname)
+      !url.search && !url.hash && /^\/kotoba\/\d{10,11}$/.test(url.pathname)
       ? url.pathname : null;
   } catch { return null; }
 }

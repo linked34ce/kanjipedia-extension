@@ -40,3 +40,9 @@ Skillの過去の観測と今回の実測を区別する。今回の調査も収
 2026-11-15、ユーザーは言葉とURLの対応表について公開可能と判断し、GitHubでの公開を承認した。読みの照合に必要な仮名を含む対応表、収集範囲の要約、読み込み用の拡張ファイルをGit管理する。説明本文、画像、取得HTML、HTTP証跡、キュー、認証情報は対象外とする。配布先はGitHubのみとし、Chromeウェブストアへの公開・申請は行わない。
 
 実装の根拠資料: [Chrome content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts)、[Playwrightの拡張テスト](https://playwright.dev/docs/chrome-extensions)、[RFC 9309](https://www.rfc-editor.org/rfc/rfc9309.html#section-2.3.1.3)、[Node.jsリリース](https://nodejs.org/en/about/previous-releases)。robotsの404と検索の404は明確に区別し、後者を0件として扱わない。
+
+## 追加確認：11桁の言葉ID（2026-11-17 JST）
+
+「ど」の3ページ目に、これまでの10桁仕様に一致しない `/kotoba/00007484700`（瞳睛）が現れ、収集を停止した。保存した検索本文を調べたうえで、共通ゲート経由のGETで同URLがHTTP 200を返し、見出し「瞳睛」・読み「ドウセイ」が一致することを確認した。項目本文のSHA-256は `7b7df13abffc8442d9b836b253f027218ac82609053bde4770fc97f9bf9cb5f5`。
+
+言葉URLの許可範囲とJSON Schemaを同一オリジンの数値10～11桁に更新した。12桁以上・別オリジン・クエリー・フラグメントは引き続き拒否する。解析器を1.1.0に更新し、保存済み本文をオフラインで再解析してから同じrunの残りを再開する。漢字ページの数値10桁の検証は変更していない。

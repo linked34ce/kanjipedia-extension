@@ -34,7 +34,7 @@
 
 - 条件表示: `#resultCondition`。対象の語・絞り込み・前方一致を検証できる。
 - 総件数: `#resultCount`。観測値は `言葉：1328件`。
-- 項目: `#resultKotobaList > li > a`。URLは `/kotoba/` に続く10桁のID。
+- 項目: `#resultKotobaList > li > a`。初回観測ではURLは `/kotoba/` に続く10桁のID。2026-11-17に11桁の瞳睛 `/kotoba/00007484700` も実在することを追加確認した。
 - アンカーは `見出しHTML<br><span>(読み)</span>`。見出しと読みをDOMで分離する。
 - ページ操作: `.pagerSection`。`a[rel="first"]` はpage省略、`a[rel="last"]` はpage=14。現在ページは `.pageOn.current` でhrefのないaを持つ。
 - 2ページ目の先頭は愛児 `/kotoba/0000021300`、末尾は渥恩 `/kotoba/0000051600`。観測した結果リンク数は100。

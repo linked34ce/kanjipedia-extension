@@ -46,7 +46,7 @@
 
 ## 拡張と配布物
 
-- `manifest.json` の静的content_scriptsに `https://www.kanjipedia.jp/kotoba/*` を追加し、実行時にも数値10桁のパスを検証する。document_idle、全フレーム注入なしを維持する。
+- `manifest.json` の静的content_scriptsに `https://www.kanjipedia.jp/kotoba/*` を追加し、実行時にも数値10～11桁の言葉パスを検証する。document_idle、全フレーム注入なしを維持する。
 - データJS→処理JSの順序とisolated worldを維持する。共通エントリーでURLごとに分岐するか、機能別スクリプトに分けるかは辞書サイズと既存構成で決める。両方の大きな辞書を全ページで不要に初期化しない。
 - 漢字対応表はJSON原本から安全にシリアライズして生成する。通信や追加権限が不要な構成を優先し、eval、外部検索、履歴送信を追加しない。
 - 漢字リンクに専用マーカーと限定したCSSを使い、親の大きいフォントサイズ・書体・太さ・行高・文字色を保つ。既存の淡い青色ハイライト、ホバー・focus-visibleを流用し、字間を変える余白や縮小表示を足さない。

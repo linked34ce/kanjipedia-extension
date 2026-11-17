@@ -17,8 +17,22 @@ test('normalization preserves ideographs, IVS, small kana and punctuation', () =
 });
 test('URL allowlist rejects unsafe locations', () => {
   for (const path of ['javascript:alert(1)', '//evil.test/kotoba/0005614200', '/kotoba/123',
-    '/kotoba/0005614200?q=x', '/kotoba/0005614200#x', 'https://user@www.kanjipedia.jp/kotoba/0005614200']) assert.equal(safePath(path), null);
+    '/kotoba/0005614200?q=x', '/kotoba/0005614200#x', '/kotoba/000007484700',
+    '//evil.test/kotoba/00007484700', '/kotoba/00007484700?q=x', '/kotoba/00007484700#x',
+    'https://user@www.kanjipedia.jp/kotoba/0005614200']) assert.equal(safePath(path), null);
   assert.equal(safePath('https://www.kanjipedia.jp/kotoba/0005614200'), '/kotoba/0005614200');
+});
+test('verified eleven-digit item IDs survive extraction, schema validation and candidate matching', async () => {
+  const path = '/kotoba/00007484700';
+  const parsed = extractSearch(searchFixture({ rows: row('瞳<sup>▲</sup>睛', 'ドウセイ', '00007484700') }), { prefix: 'あ', page: 1 });
+  assert.equal(parsed.records[0].path, path);
+  assert.equal(safePath(`https://www.kanjipedia.jp${path}`), path);
+  const dictionary = stableDictionary(parsed.records);
+  await validateDictionary(dictionary);
+  assert.equal(chooseCandidate(dictionary, '瞳睛', ['どうせい']), path);
+  await assert.rejects(validateDictionary({ schemaVersion: 1, entries: {
+    瞳睛: [{ path: '/kotoba/000007484700', reading: 'ドウセイ' }]
+  } }));
 });
 test('stable dictionary preserves homographs, deduplicates and supports prototype keys', async () => {
   const records = [record('/kotoba/0000021500', 'アイジャク', '愛着'), record('/kotoba/0000023100', 'アイチャク', '愛着'), record(), record(), record('/kotoba/0000000001', 'ア', '__proto__')];
