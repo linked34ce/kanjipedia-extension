@@ -1,0 +1,11 @@
+# Local data and build/test output are also excluded by .gitignore.
+.agents/
+
+# Generated files and hash-verified published snapshots.
+package-lock.json
+extension/content.js
+extension/data.js
+data/published/
+
+# Preserve whitespace in the browser's HTML fixture.
+tests/fixtures/*.html

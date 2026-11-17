@@ -40,7 +40,7 @@ try {
         if (error.code !== 'ENOENT') throw error;
         const current = await readJSON(path.join(root, 'data/current.json'));
         input = path.join(root, 'data', current.directory, 'dictionary.json');
-        if (hash(await fs.readFile(input)) !== current.sha256) throw new Error('Current generation hash mismatch');
+        if (hash(await fs.readFile(input)) !== current.sha256) throw new Error('Current generation hash mismatch', { cause: error });
       }
     }
     print(command === 'build' ? await buildExtension({ input }) :

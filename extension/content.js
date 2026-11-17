@@ -60,7 +60,7 @@
     if (!match) return null;
     const heading = match[2].trimEnd();
     const readings = match[3] ? match[3].split(/[・、／/]/u).map((s) => s.trim()) : [];
-    if (readings.some((s) => !s || !/^[ぁ-ゖァ-ヺー\u3099\u309a]+$/u.test(s))) return null;
+    if (readings.some((s) => !s || !/^(?:[ぁ-ゖァ-ヺー]|\u3099|\u309a)+$/u.test(s))) return null;
     return {
       heading,
       readings,

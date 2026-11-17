@@ -24,7 +24,7 @@ async function withLockGuard(directory, action) {
   try { await fs.mkdir(guard); }
   catch (error) {
     if (error.code === 'EEXIST')
-      throw new Error('Collector lock maintenance is busy (collector.lock.guard); see docs/development.md');
+      throw new Error('Collector lock maintenance is busy (collector.lock.guard); see docs/development.md', { cause: error });
     throw error;
   }
   try { return await action(); }
@@ -52,7 +52,7 @@ export async function acquireLock(directory) {
         catch (probe) {
           if (probe.code === 'ESRCH') { await fs.unlink(file); continue; }
         }
-        throw new Error('Collector is already running (collector.lock)');
+        throw new Error('Collector is already running (collector.lock)', { cause: error });
       }
     }
     throw new Error('Could not acquire collector lock');

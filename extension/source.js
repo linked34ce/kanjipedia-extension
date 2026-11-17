@@ -23,7 +23,7 @@ export function parseSegment(part) {
   const heading = match[2].trimEnd();
   // Only explicit kana readings (and their separators) are supported.
   const readings = match[3] ? match[3].split(/[・、／/]/u).map(s => s.trim()) : [];
-  if (readings.some(s => !s || !/^[ぁ-ゖァ-ヺー\u3099\u309a]+$/u.test(s))) return null;
+  if (readings.some(s => !s || !/^(?:[ぁ-ゖァ-ヺー]|\u3099|\u309a)+$/u.test(s))) return null;
   return { heading, readings, start: part.start + match[1].length,
     length: part.text.trimEnd().length - match[1].length };
 }

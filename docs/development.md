@@ -12,6 +12,8 @@ Node.js 24系LTSとnpmを使用します。依存バージョンは `package.jso
 
 ```powershell
 npm ci
+npm run format:check
+npm run lint
 npm test
 npx playwright install chromium
 npm run test:browser
@@ -20,6 +22,14 @@ npm run test:browser
 テスト自体は外部サイトへアクセスしません。ブラウザのインストールは初回のみダウンロードが必要です。ブラウザテストは合成データを一時フォルダーにビルドして本物のMV3拡張として読み込み、通信を遮断したページで比較します。結果と比較画像は `artifacts/` に出力します。普段のChromeプロファイルは使用しません。
 
 Windows PowerShellでの引数の取り違えを避けるため、引数を付ける収集操作は `node collector/cli.js` で直接実行します。
+
+## 整形と静的解析
+
+`npm run format` でPrettierによる整形、`npm run format:check` で整形状態の確認を行います。`npm run lint` でESLintの推奨ルールによる静的解析、`npm run lint:fix` で自動修正を行います。警告も検証失敗として扱います。
+
+整形はPrettierに集約し、ESLint設定の最後に `eslint-config-prettier` を適用して競合する整形ルールを無効化します。Node.js用コードとブラウザ用コードのグローバル変数はファイルごとに指定しています。競合の確認は `npx eslint-config-prettier collector/cli.js extension/source.js shared/core.js tests/browser.js eslint.config.js` で行えます。
+
+ローカルの収集データ、ビルド・テスト出力、生成済みの `extension/data.js` と `extension/content.js` は整形・静的解析から除外します。公開辞書とmanifestの `data/published/` はハッシュ整合性を保つため整形対象外です。生成される `package-lock.json`、プロジェクトSkill、空白を維持するHTMLフィクスチャも整形対象外です。拡張のJavaScriptは `extension/source.js` と `shared/core.js` を修正・検証し、`npm run build` で生成ファイルを更新します。
 
 ## 調査と小規模収集
 

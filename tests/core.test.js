@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { headingKey, readingKey, safePath, stableDictionary, chooseCandidate } from '../shared/core.js';
 import { extractSearch, searchPage, searchURL } from '../collector/extract.js';
 import { validateDictionary } from '../scripts/build.js';
-import { linkDocument, segments } from '../extension/source.js';
+import { linkDocument, parseSegment, segments } from '../extension/source.js';
 import { searchFixture, row } from './fixtures/search.js';
 const record = (path = '/kotoba/0005614200', reading = 'ハクア', variant = '白亜') => ({ path, reading, variants: [variant] });
 
@@ -14,6 +14,16 @@ test('normalization preserves ideographs, IVS, small kana and punctuation', () =
   assert.equal(readingKey('(か\u3099く)'), 'ガク');
   assert.notEqual(readingKey('きゃ'), readingKey('きや'));
   assert.notEqual(readingKey('はく・あ'), readingKey('はくあ'));
+});
+
+test('segment readings preserve combining kana marks and reject non-kana', () => {
+  for (const reading of ['か\u3099く', 'は\u309aく', 'ガク', 'がく']) {
+    const parsed = parseSegment({ start: 0, text: `学(${reading})` });
+    assert.deepEqual(parsed.readings, [reading]);
+  }
+  for (const reading of ['学', 'gaku', 'がく!']) {
+    assert.equal(parseSegment({ start: 0, text: `学(${reading})` }), null);
+  }
 });
 test('URL allowlist rejects unsafe locations', () => {
   for (const path of ['javascript:alert(1)', '//evil.test/kotoba/0005614200', '/kotoba/123',
