@@ -12,6 +12,15 @@ export function retryAfter(value, now) {
   return Math.max(now + 900_000, Number.isFinite(date) ? date : 0);
 }
 
+export async function scheduleRetry(gate, attempt) {
+  // Persist the delay so restarting cannot bypass the retry backoff.
+  gate.state.nextAt = Math.max(
+    gate.state.nextAt ?? 0,
+    gate.now() + (attempt === 1 ? 60_000 : 180_000) + gate.random() * 5000,
+  );
+  await gate.save(gate.state);
+}
+
 export function robotsRules(text, agent = 'kanjipedia-link-collector') {
   const groups = [];
   let group = null,
@@ -260,13 +269,7 @@ export class HttpGate {
         break;
       } catch (error) {
         if (!error.retryable || attempt === 3) throw error;
-        this.state.nextAt = Math.max(
-          this.state.nextAt ?? 0,
-          this.now() +
-            (attempt === 1 ? 60_000 : 180_000) +
-            this.random() * 5000,
-        );
-        await this.save(this.state);
+        await scheduleRetry(this, attempt);
       }
     }
     const policy = {

@@ -2,8 +2,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { extractSearch, searchURL } from './extract.js';
-import { atomicWrite, writeJSON, hash } from './store.js';
-import { Stop } from './http.js';
+import { atomicWrite, readJSON, writeJSON, hash } from './store.js';
+import { Stop, scheduleRetry } from './http.js';
 import { stableDictionary, PARSER_VERSION } from '../shared/core.js';
 import { validateDictionary } from '../scripts/build.js';
 
@@ -27,6 +27,79 @@ export function createRun(prefixes, { full = false, seedPage = 1 } = {}) {
 }
 export const jobStem = (prefix, page) =>
   `${[...prefix].map((c) => c.codePointAt(0).toString(16)).join('_')}-${page}`;
+
+function pageFiles(directory, job) {
+  const stem = jobStem(job.prefix, job.page);
+  return {
+    bodyFile: `${stem}.html`,
+    html: path.join(directory, `${stem}.html`),
+    evidence: path.join(directory, `${stem}.response.json`),
+  };
+}
+
+async function restorePage(files) {
+  const evidence = await readJSON(files.evidence, null);
+  if (!evidence) return null;
+  let html;
+  try {
+    html = await fs.readFile(files.html, 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT' || typeof evidence.body !== 'string')
+      throw error;
+    html = evidence.body;
+    if (hash(html) !== evidence.bodyHash)
+      throw new Stop('Saved envelope hash mismatch');
+    await atomicWrite(files.html, html);
+  }
+  if (hash(html) !== evidence.bodyHash)
+    throw new Stop('Saved HTML hash mismatch');
+  return { html, evidence };
+}
+
+async function fetchPage(job, files, gate, save) {
+  await gate.ensureRobots('https://www.kanjipedia.jp');
+  job.state = 'inflight';
+  await save();
+  for (;;) {
+    const usedBefore = gate.used;
+    let result;
+    try {
+      result = await gate.get(searchURL(job.prefix, job.page));
+    } catch (error) {
+      if (gate.used > usedBefore) job.attempts++;
+      job.httpAttempts = (job.httpAttempts ?? 0) + gate.used - usedBefore;
+      job.error = error.message;
+      job.status = error.response?.status;
+      await save();
+      if (!error.retryable || job.attempts >= 3) throw error;
+      await scheduleRetry(gate, job.attempts);
+      continue;
+    }
+    job.attempts++;
+    job.httpAttempts = (job.httpAttempts ?? 0) + gate.used - usedBefore;
+    const html = result.body;
+    const evidence = { ...result, body: undefined, bodyHash: hash(html) };
+    // Save the atomic envelope first: HTML alone cannot recover a response's metadata.
+    await writeJSON(files.evidence, { ...evidence, body: html });
+    await atomicWrite(files.html, html);
+    return { html, evidence };
+  }
+}
+
+function parsePage(run, job, { html, evidence }) {
+  try {
+    return extractSearch(html, {
+      prefix: job.prefix,
+      page: job.page,
+      verifiedVariants: run.verifiedVariants ?? [],
+      searchURL: evidence.url,
+      fetchedAt: evidence.fetchedAt,
+      bodyHash: evidence.bodyHash,
+    });
+  } catch (error) {
+    throw new Stop(`Extraction stopped: ${error.message}`);
+  }
+}
 export function addPage(run, prefix, page) {
   if (!run.queue.some((job) => job.prefix === prefix && job.page === page))
     run.queue.push({
@@ -95,94 +168,25 @@ export async function processRun(
     if (job.state === 'failed' && job.attempts >= 3 && !reparse)
       throw new Stop('Exhausted page; investigate before a new run');
     try {
-      let html;
-      // Evidence is saved before metadata and before done. The stable per-job filename
-      // lets recovery detect a response even if the final state write was interrupted.
-      const stem = jobStem(job.prefix, job.page);
-      const evidenceFile = path.join(directory, `${stem}.response.json`);
-      let evidence;
-      try {
-        evidence = JSON.parse(await fs.readFile(evidenceFile, 'utf8'));
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-      if (evidence) {
-        try {
-          html = await fs.readFile(
-            path.join(directory, `${stem}.html`),
-            'utf8',
-          );
-        } catch (error) {
-          if (error.code !== 'ENOENT' || typeof evidence.body !== 'string')
-            throw error;
-          html = evidence.body;
-          if (hash(html) !== evidence.bodyHash)
-            throw new Stop('Saved envelope hash mismatch');
-          await atomicWrite(path.join(directory, `${stem}.html`), html);
-        }
-        if (hash(html) !== evidence.bodyHash)
-          throw new Stop('Saved HTML hash mismatch');
-      } else {
+      // Stable filenames recover a saved response even if run.json was not updated.
+      const files = pageFiles(directory, job);
+      let page = await restorePage(files);
+      if (!page) {
         if (reparse) {
           job.state = 'pending';
           continue;
         }
-        await gate.ensureRobots('https://www.kanjipedia.jp');
-        job.state = 'inflight';
-        await save();
-        for (;;) {
-          const usedBefore = gate.used;
-          let result;
-          try {
-            result = await gate.get(searchURL(job.prefix, job.page));
-          } catch (error) {
-            if (gate.used > usedBefore) job.attempts++;
-            job.httpAttempts = (job.httpAttempts ?? 0) + gate.used - usedBefore;
-            job.error = error.message;
-            job.status = error.response?.status;
-            await save();
-            if (!error.retryable || job.attempts >= 3) throw error;
-            // Retry delay is persisted, so a restart cannot bypass it.
-            gate.state.nextAt = Math.max(
-              gate.state.nextAt ?? 0,
-              gate.now() +
-                (job.attempts === 1 ? 60_000 : 180_000) +
-                gate.random() * 5000,
-            );
-            await gate.save(gate.state);
-            continue;
-          }
-          job.attempts++;
-          job.httpAttempts = (job.httpAttempts ?? 0) + gate.used - usedBefore;
-          html = result.body;
-          evidence = { ...result, body: undefined, bodyHash: hash(html) };
-          // One atomic envelope is the crash-recovery authority; the separate HTML
-          // file can always be reconstructed without making another HTTP request.
-          await writeJSON(evidenceFile, { ...evidence, body: html });
-          await atomicWrite(path.join(directory, `${stem}.html`), html);
-          break;
-        }
+        page = await fetchPage(job, files, gate, save);
       }
+      const { evidence } = page;
       Object.assign(job, {
-        bodyFile: `${stem}.html`,
+        bodyFile: files.bodyFile,
         bodyHash: evidence.bodyHash,
         fetchedAt: evidence.fetchedAt,
         status: evidence.status,
         url: evidence.url,
       });
-      let parsed;
-      try {
-        parsed = extractSearch(html, {
-          prefix: job.prefix,
-          page: job.page,
-          verifiedVariants: run.verifiedVariants ?? [],
-          searchURL: evidence.url,
-          fetchedAt: evidence.fetchedAt,
-          bodyHash: evidence.bodyHash,
-        });
-      } catch (error) {
-        throw new Stop(`Extraction stopped: ${error.message}`);
-      }
+      const parsed = parsePage(run, job, page);
       acceptPage(run, job, parsed);
       delete job.error;
       await save();
