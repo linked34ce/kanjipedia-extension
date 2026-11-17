@@ -107,3 +107,16 @@ HTTP試験は時計・乱数・待機・リクエストを差し替え、間隔�
 Prettierによる全体整形とESLintの静的解析を実行し、指摘を修正した。`eslint-config-prettier` による競合確認、`npm run format:check`、`npm run lint` が成功。単体・回帰テストは41件成功し、結合濁点・半濁点の読みを保持する試験を追加した。
 
 `npm run build`、`npm run validate`、通信を遮断した `npm run test:browser` も成功。公開辞書のSHA-256は `c3f1a7b6705ad54a9e6ab65447bf77bce9552911f6f84a56ee453346f0abef68` を維持した。生成済み拡張は整形後のソースから再ビルドした。
+
+## 責務分離のリファクタリング（2026-11-17）
+
+全体のコードと呼び出し関係を確認し、複数の責務が混在していた拡張のDOM処理、収集キュー処理、辞書検証とビルドの依存関係を整理した。
+
+- `extension/source.js` は対象段落の検査、子ノードの位置計算、既存要素の保護判定、リンク挿入を分離した。後方からの挿入順序、語と読みの候補照合、既存DOMの保持を維持し、生成済み `extension/content.js` を更新した。
+- `collector/run.js` は保存済み証跡の復元、再試行を伴う取得、解析をキューの進行管理から分離した。応答一式をHTMLより先に原子的に保存する順序、試行回数とHTTP要求数の計上、停止状態と進捗の保存を維持した。
+- `collector/http.js` はページ取得とrobots取得の再試行待機を共通化した。60秒／180秒とジッター、既存の長い待機を優先する計算、再起動でも待機を飛ばさない永続化を維持した。
+- `scripts/dictionary.js` に辞書スキーマ検証を移し、収集や受入検証がesbuildを読み込む依存を解消した。既存の `scripts/build.js` の `root` と `validateDictionary` は再エクスポートで維持した。
+
+変更前の41テスト、ESLint、整形チェック、合成HTMLによるChromium試験は成功した。構造変更の前に、未確認のDOM構造での無変更、複数リンク挿入と別テキストノードの保護、破損した復元用応答一式での停止、保存証跡がないページのオフライン再解析、robots再試行待機の永続化の5テストを追加し、元の実装でも通ることを確認した。変更後は46テスト、ESLint、整形チェック、同梱辞書の検証とビルドが成功した。
+
+`node scripts/verify-local.js data/published/dictionary.json` と `node tests/browser.js --input data/published/dictionary.json --html .local/acceptance.html` も成功した。35,037見出しの辞書と保存済み実HTMLで、原文・対象外DOM・表示高さの保持、読み仮名全体へのリンク、通常・ホバー・フォーカス時の表示、Enter遷移、再注入時の重複なし、例外0、追加HTTP0を確認した。公開辞書のSHA-256は上記の値を維持した。外部サイトへの取得は行わず、Chrome実サイトでの手動目視は未実施。
