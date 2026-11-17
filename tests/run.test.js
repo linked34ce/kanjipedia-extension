@@ -41,7 +41,11 @@ function fakeGate(bodies) {
       calls++;
       assert.ok(bodies.length, `予定外の検索要求: ${url}`);
 
-      return new Response(bodies.shift() ?? '', {
+      const body = bodies.shift();
+
+      if (body instanceof Response) return body;
+
+      return new Response(body ?? '', {
         status: bodies.status ?? 200,
       });
     },
@@ -137,50 +141,97 @@ test('HTML書き込みが中断しても原子的に保存した応答一式か�
 });
 
 for (const boundary of ['HTML保存', '完了状態保存']) {
-  test(`${boundary}に失敗しても保存済み応答から再取得せず再開する`, async (t) => {
+  for (const failures of [0, 2]) {
+    test(`${failures + 1}回目の取得後の${boundary}に失敗しても保存済み応答から再取得せず再開する`, async (t) => {
+      const directory = await temporaryDirectory(t);
+      const run = createRun(plan);
+      const html = searchFixture();
+      const { gate, calls } = fakeGate([
+        ...Array.from(
+          { length: failures },
+          () => new Response('fail', { status: 503 }),
+        ),
+        html,
+      ]);
+      const rename = fs.rename.bind(fs);
+      const failure = Object.assign(new Error('保存境界でのI/O障害'), {
+        code: 'EIO',
+      });
+      let injected = false;
+
+      t.mock.method(fs, 'rename', async (from, to) => {
+        const target =
+          boundary === 'HTML保存'
+            ? to.endsWith('.html')
+            : to.endsWith('run.json') &&
+              JSON.parse(await fs.readFile(from, 'utf8')).queue[0].state ===
+                'done';
+
+        if (target && !injected) {
+          injected = true;
+          throw failure;
+        }
+
+        return rename(from, to);
+      });
+
+      await assert.rejects(processRun(run, directory, gate), failure);
+      assert.equal(injected, true, '指定した保存境界まで処理を進める');
+
+      const saved = await readJSON(path.join(directory, 'run.json'));
+      assert.equal(saved.queue[0].state, 'failed');
+      assert.equal(saved.queue[0].attempts, failures + 1);
+      assert.equal(saved.queue[0].httpAttempts, failures + 1);
+      assert.deepEqual(
+        gate.state.events
+          .filter((event) => !event.url.endsWith('/robots.txt'))
+          .map((event) => event.status),
+        [...Array(failures).fill(503), 200],
+      );
+      const evidence = await readJSON(
+        path.join(directory, '3042-1.response.json'),
+      );
+
+      assert.equal(evidence.status, 200);
+      assert.equal(evidence.body, html);
+      assert.equal(evidence.bodyHash, hash(html));
+      let resumed;
+
+      await assert.doesNotReject(async () => {
+        resumed = await processRun(saved, directory, null);
+      }, '保存済みの応答だけで再開でき、HTTPゲートを必要としない');
+
+      assert.equal(calls(), failures + 1, '保存失敗後も応答を再取得しない');
+      assert.equal(resumed.complete, true);
+      assert.equal(
+        await fs.readFile(path.join(directory, '3042-1.html'), 'utf8'),
+        html,
+      );
+      const completed = await readJSON(path.join(directory, 'run.json'));
+
+      assert.equal(completed.queue[0].state, 'done');
+      assert.equal(completed.queue[0].attempts, failures + 1);
+      assert.deepEqual(completed.queue[0].parsed.records[0].variants, ['白亜']);
+    });
+  }
+}
+
+for (const state of ['failed', 'pending', 'inflight']) {
+  test(`保存応答がなく試行上限に達した${state}ページはHTTP要求前に停止する`, async (t) => {
     const directory = await temporaryDirectory(t);
     const run = createRun(plan);
-    const { gate, calls } = fakeGate([searchFixture()]);
-    const rename = fs.rename.bind(fs);
-    const failure = Object.assign(new Error('保存境界でのI/O障害'), {
-      code: 'EIO',
-    });
-    let injected = false;
 
-    t.mock.method(fs, 'rename', async (from, to) => {
-      const target =
-        boundary === 'HTML保存'
-          ? to.endsWith('.html')
-          : to.endsWith('run.json') &&
-            JSON.parse(await fs.readFile(from, 'utf8')).queue[0].state ===
-              'done';
-
-      if (target && !injected) {
-        injected = true;
-        throw failure;
-      }
-
-      return rename(from, to);
-    });
-
-    await assert.rejects(processRun(run, directory, gate), failure);
-    assert.equal(injected, true, '指定した保存境界まで処理を進める');
+    Object.assign(run.queue[0], { state, attempts: 3 });
+    await writeJSON(path.join(directory, 'run.json'), run);
 
     const saved = await readJSON(path.join(directory, 'run.json'));
-    assert.equal(saved.queue[0].state, 'failed');
-    let resumed;
 
-    await assert.doesNotReject(async () => {
-      resumed = await processRun(saved, directory, null);
-    }, '保存済みの応答だけで再開でき、HTTPゲートを必要としない');
-
-    assert.equal(calls(), 1, '保存失敗後も応答を再取得しない');
-    assert.equal(resumed.complete, true);
-    assert.deepEqual(
-      (await readJSON(path.join(directory, 'run.json'))).queue[0].parsed
-        .records[0].variants,
-      ['白亜'],
-    );
+    await assert.rejects(processRun(saved, directory, null), {
+      code: 3,
+      message: 'Exhausted page; investigate before a new run',
+    });
+    assert.equal(saved.complete, false);
+    assert.equal(saved.queue[0].attempts, 3);
   });
 }
 

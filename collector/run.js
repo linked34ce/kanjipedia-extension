@@ -221,9 +221,6 @@ export async function processRun(
 
     if (job.state === 'done') continue;
 
-    if (job.state === 'failed' && job.attempts >= 3 && !reparse)
-      throw new Stop('Exhausted page; investigate before a new run');
-
     try {
       // run.jsonの更新前に中断しても応答を復元できるよう、ファイル名をジョブごとに固定する。
       const files = pageFiles(directory, job);
@@ -235,6 +232,10 @@ export async function processRun(
 
           continue;
         }
+
+        // 試行上限は新しいHTTP要求に適用し、保存済みの成功応答の復元は妨げない。
+        if (job.attempts >= 3)
+          throw new Stop('Exhausted page; investigate before a new run');
 
         page = await fetchPage(job, files, gate, save);
       }

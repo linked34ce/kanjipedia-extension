@@ -181,3 +181,13 @@ CLIを子プロセスで実行する回帰テストを追加し、修正前に�
 `npm run validate`、`npm run build`、`npm run test:browser`、`node scripts/verify-local.js data/published/dictionary.json`、`node tests/browser.js --input data/published/dictionary.json --html .local/acceptance.html` が成功。ブラウザでは操作前の要求一覧を除外なしに比較し、合成入力と公開辞書＋保存HTMLの両方で追加HTTP0・例外0、白亜の正しいURL、原文・対象外DOM・表示高さの保持、ホバー・Tab／Enter・同一タブ遷移、再注入の重複なしを確認した。
 
 本番コード・公開辞書・生成済み拡張の変更はなく、公開辞書のSHA-256は `c3f1a7b6705ad54a9e6ab65447bf77bce9552911f6f84a56ee453346f0abef68` を維持した。実サイトへの新しい取得、30秒の実時間タイムアウト、電源断・OS強制終了の試験、通常Chromeでの実サイト手動目視は行っていない。
+
+## 再レビュー：試行上限時の保存応答復元（2026-11-18）
+
+PR #1の追加指摘について、503が2回続いた後の3回目に200を取得し、HTML保存または完了状態の保存でEIOになる条件を再現した。応答一式は保存済みでも、通常の再開は復元前に `Exhausted page` で停止していた。両方の保存境界で、修正前の回帰テストが期待する復元に失敗することを確認した。
+
+`collector/run.js` の試行上限判定を保存応答の復元後へ移し、新しいHTTP要求が必要な場合だけ適用した。保存応答のハッシュ検証とオフライン再解析は既存の経路を使う。保存応答がない場合はfailed・pending・inflightのいずれも3試行で追加HTTP要求前に停止する。
+
+保存障害の試験を初回成功と3回目成功の両方に広げ、ディスクからrunを読み直してHTTPゲートなしで復元できること、応答本文・ハッシュ・試行数・完了状態を確認した。保存応答がない3状態の上限停止も含め、`npm test` は101件成功。`npm run lint`、`npm run format:check`、`npm run validate`、`git diff --check` も成功した。
+
+今回の変更は収集の再開処理・回帰テスト・開発文書に限定した。公開辞書・生成済み拡張は変更していない。外部サイトへの取得、ブラウザ試験、実時間のタイムアウト、電源断・OS強制終了の試験は実施していない。
