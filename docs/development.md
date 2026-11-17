@@ -105,9 +105,9 @@ node collector/cli.js validate --input data/partial/RUN_ID/dictionary.json
 node collector/cli.js build --input data/partial/RUN_ID/dictionary.json
 ```
 
-辞書は語→候補配列です。同形異読と同じ読みの別URLを保持し、確定できなければリンクを作りません。`validate` はJSON SchemaとURL形式を検証します。`build` はそれに加え、入力と同じフォルダーにmanifestがある場合に辞書のSHA-256を照合します。合成辞書などmanifestがない入力もビルドできます。`package-data.js` による公開用出力ではmanifestが必須です。本文は時刻を含まず安定順で出力し、収集期間・範囲・不足・衝突・解析保留は別manifestに保存します。生成JSはJSON.parseと安全なシリアライズを使い、evalや外部HTML挿入を使いません。
+辞書は語→候補配列です。同形異読と同じ読みの別URLを保持し、確定できなければリンクを作りません。`validate` と `build` は共通の読み込み処理でJSON SchemaとURL形式を検証し、入力と同じフォルダーにmanifestがある場合に辞書のSHA-256を照合します。不一致や破損manifestはエラーとして終了します。合成辞書などmanifestがない入力も検証・ビルドできます。`package-data.js` による公開用出力ではmanifestが必須です。本文は時刻を含まず安定順で出力し、収集期間・範囲・不足・衝突・解析保留は別manifestに保存します。生成JSはJSON.parseと安全なシリアライズを使い、evalや外部HTML挿入を使いません。
 
-同一URLで見出し・読みが矛盾する場合は `report` の `conflicts` に記録し、完成世代への出力を拒否します。部分出力ではそのURLを除外します。現在の収集処理は矛盾を検出しても後続ページを処理し、最後に未完了を返します。即停止への変更と `validate` へのmanifestハッシュ照合追加は、[照合記録](verification.md#実装と文書prの照合2026-11-17) に記した確認事項です。
+同一URLで見出し・読みが矛盾する場合は `report` の `conflicts` に記録し、完成世代への出力を拒否します。部分出力ではそのURLを除外します。現在の収集処理は矛盾を検出しても後続ページを処理し、最後に未完了を返します。即停止への変更は、[照合記録](verification.md#実装と文書prの照合2026-11-17) に記した対応事項です。
 
 現在の公開用辞書の再ビルドと、保存した実HTMLでの再検証は次のとおりです。後半の2コマンドにはローカルに保存した亜の調査証跡が必要です。`verify-local.js` がその本文ハッシュを検証し、ブラウザ用の `.local/acceptance.html` を生成します。
 

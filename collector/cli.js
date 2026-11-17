@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildExtension } from '../scripts/build.js';
-import { root, validateDictionary } from '../scripts/dictionary.js';
+import { root, loadDictionary } from '../scripts/dictionary.js';
 import {
   acquireLock,
   readJSON,
@@ -85,7 +85,7 @@ try {
     print(
       command === 'build'
         ? await buildExtension({ input })
-        : { valid: Boolean(await validateDictionary(await readJSON(input))) },
+        : { valid: Boolean(await loadDictionary(input)) },
     );
   } else if (command === 'report') {
     print(
