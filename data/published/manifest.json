@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "parserVersion": "1.0.0",
+  "parserVersion": "1.1.0",
   "runId": "9f47a2d6-db36-449d-94f5-455490ae081f",
-  "generatedAt": "2026-11-15T13:05:58.692Z",
+  "generatedAt": "2026-11-17T11:32:54.630Z",
   "startedAt": "2026-11-15T10:10:48.910Z",
-  "finishedAt": "2026-11-15T13:05:45.421Z",
-  "complete": false,
+  "finishedAt": "2026-11-17T11:32:53.068Z",
+  "complete": true,
   "prefixes": [
     {
       "prefix": "あ",
@@ -710,24 +710,16 @@
     {
       "prefix": "じ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 1261,
       "pages": 13,
-      "rows": 600,
-      "uniqueURLs": 600,
+      "rows": 1261,
+      "uniqueURLs": 1261,
       "duplicateRows": 0,
-      "missingPages": [
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13
-      ],
-      "consistent": false,
-      "unresolved": 12
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 40
     },
     {
       "prefix": "ず",
@@ -746,52 +738,44 @@
     {
       "prefix": "ぜ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 186,
       "pages": 2,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 186,
+      "uniqueURLs": 186,
       "duplicateRows": 0,
-      "missingPages": [
-        2
-      ],
-      "consistent": false,
-      "unresolved": 4
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 5
     },
     {
       "prefix": "ぞ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 126,
       "pages": 2,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 126,
+      "uniqueURLs": 126,
       "duplicateRows": 0,
-      "missingPages": [
-        2
-      ],
-      "consistent": false,
-      "unresolved": 3
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 6
     },
     {
       "prefix": "だ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 369,
       "pages": 4,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 369,
+      "uniqueURLs": 369,
       "duplicateRows": 0,
-      "missingPages": [
-        2,
-        3,
-        4
-      ],
-      "consistent": false,
-      "unresolved": 8
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 23
     },
     {
       "prefix": "ぢ",
@@ -824,36 +808,30 @@
     {
       "prefix": "で",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 127,
       "pages": 2,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 127,
+      "uniqueURLs": 127,
       "duplicateRows": 0,
-      "missingPages": [
-        2
-      ],
-      "consistent": false,
-      "unresolved": 10
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 11
     },
     {
       "prefix": "ど",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 392,
       "pages": 4,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 392,
+      "uniqueURLs": 392,
       "duplicateRows": 0,
-      "missingPages": [
-        2,
-        3,
-        4
-      ],
-      "consistent": false,
-      "unresolved": 13
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 25
     },
     {
       "prefix": "ば",
@@ -872,70 +850,58 @@
     {
       "prefix": "び",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 219,
       "pages": 3,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 219,
+      "uniqueURLs": 219,
       "duplicateRows": 0,
-      "missingPages": [
-        2,
-        3
-      ],
-      "consistent": false,
-      "unresolved": 5
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 10
     },
     {
       "prefix": "ぶ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 276,
       "pages": 3,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 276,
+      "uniqueURLs": 276,
       "duplicateRows": 0,
-      "missingPages": [
-        2,
-        3
-      ],
-      "consistent": false,
-      "unresolved": 5
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 7
     },
     {
       "prefix": "べ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 117,
       "pages": 2,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 117,
+      "uniqueURLs": 117,
       "duplicateRows": 0,
-      "missingPages": [
-        2
-      ],
-      "consistent": false,
-      "unresolved": 9
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 10
     },
     {
       "prefix": "ぼ",
       "status": "target",
-      "verification": "unconfirmed",
+      "verification": "verified",
       "reason": "清音への包含を仮定せず独立に確認する",
       "total": 318,
       "pages": 4,
-      "rows": 100,
-      "uniqueURLs": 100,
+      "rows": 318,
+      "uniqueURLs": 318,
       "duplicateRows": 0,
-      "missingPages": [
-        2,
-        3,
-        4
-      ],
-      "consistent": false,
-      "unresolved": 5
+      "missingPages": [],
+      "consistent": true,
+      "unresolved": 16
     },
     {
       "prefix": "ぱ",
@@ -1260,12 +1226,12 @@
       "unresolved": 0
     }
   ],
-  "records": 34007,
-  "uniqueURLs": 34005,
-  "unresolved": 5434,
+  "records": 35819,
+  "uniqueURLs": 35817,
+  "unresolved": 5513,
   "conflicts": [],
-  "dictionaryKeys": 33278,
-  "sha256": "09a11b6a697f71404ba836ca906a39a9abed898bb77a01b6fa1595f60811e7b8",
+  "dictionaryKeys": 35037,
+  "sha256": "c3f1a7b6705ad54a9e6ab65447bf77bce9552911f6f84a56ee453346f0abef68",
   "source": "https://www.kanjipedia.jp",
   "redistribution": "github-only-user-approved"
 }
