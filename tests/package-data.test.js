@@ -1,15 +1,13 @@
+import { temporaryDirectory } from './helpers/files.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { packageData } from '../scripts/package-data.js';
 import { hash, readJSON, writeJSON } from '../collector/store.js';
 
-test('GitHub向けパッケージで対応表と部分的な収集範囲を保持し、生の証跡を混入させない', async () => {
-  const temporary = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'kanjipedia-package-'),
-  );
+async function packageInput(t) {
+  const temporary = await temporaryDirectory(t);
   const input = path.join(temporary, 'dictionary.json');
 
   await writeJSON(input, {
@@ -36,6 +34,12 @@ test('GitHub向けパッケージで対応表と部分的な収集範囲を保�
 
   await writeJSON(path.join(temporary, 'manifest.json'), manifest);
 
+  return { temporary, input, manifest };
+}
+
+test('GitHub向けパッケージは対応表と収集範囲だけを公開し、生の証跡を含めない', async (t) => {
+  const { temporary, input, manifest } = await packageInput(t);
+
   const directory = path.join(temporary, 'published'),
     extensionOutput = path.join(temporary, 'extension');
   const result = await packageData(input, { directory, extensionOutput });
@@ -47,10 +51,45 @@ test('GitHub向けパッケージで対応表と部分的な収集範囲を保�
     await fs.readFile(path.join(directory, 'dictionary.json')),
     await fs.readFile(input),
   );
-  assert.deepEqual(published.prefixes, manifest.prefixes);
-  assert.equal(published.redistribution, 'github-only-user-approved');
-  assert.ok(!JSON.stringify(published).includes('private'));
-  assert.ok(await fs.stat(path.join(extensionOutput, 'data.js')));
+  assert.deepEqual(published, {
+    schemaVersion: 1,
+    parserVersion: '1.0.0',
+    runId: 'test-run',
+    complete: false,
+    prefixes: [{ prefix: 'はくあ', missingPages: [2] }],
+    records: 1,
+    uniqueURLs: 1,
+    unresolved: 1,
+    conflicts: [],
+    dictionaryKeys: 1,
+    sha256: manifest.sha256,
+    source: 'https://www.kanjipedia.jp',
+    redistribution: 'github-only-user-approved',
+  });
+  assert.deepEqual((await fs.readdir(directory)).sort(), [
+    'dictionary.json',
+    'manifest.json',
+  ]);
+  assert.deepEqual((await fs.readdir(extensionOutput)).sort(), [
+    'content.css',
+    'content.js',
+    'data.js',
+    'manifest.json',
+  ]);
+});
+
+test('入力ハッシュが不一致なら公開済み辞書・manifest・生成JSを上書きしない', async (t) => {
+  const { temporary, input, manifest } = await packageInput(t);
+  const directory = path.join(temporary, 'published');
+  const extensionOutput = path.join(temporary, 'extension');
+
+  await packageData(input, { directory, extensionOutput });
+  const files = [
+    path.join(directory, 'dictionary.json'),
+    path.join(directory, 'manifest.json'),
+    path.join(extensionOutput, 'data.js'),
+  ];
+  const before = await Promise.all(files.map((file) => fs.readFile(file)));
 
   await writeJSON(path.join(temporary, 'manifest.json'), {
     ...manifest,
@@ -60,5 +99,9 @@ test('GitHub向けパッケージで対応表と部分的な収集範囲を保�
   await assert.rejects(
     packageData(input, { directory, extensionOutput }),
     /hash mismatch/,
+  );
+  assert.deepEqual(
+    await Promise.all(files.map((file) => fs.readFile(file))),
+    before,
   );
 });

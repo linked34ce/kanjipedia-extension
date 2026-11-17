@@ -1,16 +1,14 @@
+import { temporaryDirectory } from './helpers/files.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import vm from 'node:vm';
 import { buildExtension } from '../scripts/build.js';
 import { hash, writeJSON } from '../collector/store.js';
 
-test('ビルドで世代のハッシュを検証し、JavaScriptで注意が必要な文字列とプロトタイプ名のキーを安全に復元する', async () => {
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'kanjipedia-build-'),
-  );
+test('生成JSで特殊文字列とプロトタイプ名のキーを安全に復元し、MV3を最小権限で読み込む', async (t) => {
+  const directory = await temporaryDirectory(t);
   const input = path.join(directory, 'dictionary.json');
   const dictionary = {
     schemaVersion: 1,
@@ -57,8 +55,27 @@ test('ビルドで世代のハッシュを検証し、JavaScriptで注意が必�
   assert.equal(manifest.host_permissions, undefined);
   assert.equal(manifest.web_accessible_resources, undefined);
   assert.equal(manifest.background, undefined);
+  assert.deepEqual(manifest.content_scripts[0].matches, [
+    'https://www.kanjipedia.jp/kanji/*',
+  ]);
+  assert.equal(manifest.content_scripts[0].all_frames, false);
+  assert.equal(manifest.content_scripts[0].run_at, 'document_idle');
+});
+
+test('入力manifestのハッシュ不一致でビルドを拒否し、既存生成物を保持する', async (t) => {
+  const directory = await temporaryDirectory(t);
+  const input = path.join(directory, 'dictionary.json');
+  const output = path.join(directory, 'extension');
+  await writeJSON(input, { schemaVersion: 1, entries: {} });
+  await fs.mkdir(output);
+  await fs.writeFile(path.join(output, 'data.js'), '確定済みの生成物');
 
   await writeJSON(path.join(directory, 'manifest.json'), { sha256: 'wrong' });
 
   await assert.rejects(buildExtension({ input, output }), /hash mismatch/);
+  assert.deepEqual(await fs.readdir(output), ['data.js']);
+  assert.equal(
+    await fs.readFile(path.join(output, 'data.js'), 'utf8'),
+    '確定済みの生成物',
+  );
 });

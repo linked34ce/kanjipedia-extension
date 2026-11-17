@@ -20,6 +20,66 @@ const record = (
   variant = '白亜',
 ) => ({ path, reading, variants: [variant] });
 
+for (const [label, candidates, readings, expected] of [
+  [
+    '読みで同形異読を絞る',
+    [
+      { path: '/kotoba/0000021500', reading: 'アイジャク' },
+      { path: '/kotoba/0000023100', reading: 'アイチャク' },
+    ],
+    ['あいちゃく'],
+    '/kotoba/0000023100',
+  ],
+  [
+    '読みなしで異なるURLが残る',
+    [
+      { path: '/kotoba/0000021500', reading: 'アイジャク' },
+      { path: '/kotoba/0000023100', reading: 'アイチャク' },
+    ],
+    [],
+    null,
+  ],
+  [
+    '読みなしでも同じURLだけに決まる',
+    [
+      { path: '/kotoba/0000023100', reading: 'アイチャク' },
+      { path: '/kotoba/0000023100', reading: 'アイジャク' },
+    ],
+    [],
+    '/kotoba/0000023100',
+  ],
+  [
+    '複数読みが同じURLを指す',
+    [
+      { path: '/kotoba/0000023100', reading: 'アイチャク' },
+      { path: '/kotoba/0000023100', reading: 'アイジャク' },
+    ],
+    ['あいちゃく', 'あいじゃく'],
+    '/kotoba/0000023100',
+  ],
+  [
+    '複数読みが別々のURLを指す',
+    [
+      { path: '/kotoba/0000021500', reading: 'アイジャク' },
+      { path: '/kotoba/0000023100', reading: 'アイチャク' },
+    ],
+    ['あいちゃく', 'あいじゃく'],
+    null,
+  ],
+  [
+    '危険URLしか一致しない',
+    [{ path: 'https://evil.test', reading: 'アイチャク' }],
+    ['あいちゃく'],
+    null,
+  ],
+]) {
+  test(`候補照合: ${label}`, () => {
+    const dictionary = { schemaVersion: 1, entries: { 愛着: candidates } };
+
+    assert.equal(chooseCandidate(dictionary, '愛着', readings), expected);
+  });
+}
+
 test('正規化しても漢字・IVS・小書き仮名・句読点を保持する', () => {
   assert.equal(headingKey(' 〈舊神葛󠄀〉 '), '舊神葛󠄀');
   assert.equal(readingKey('(か\u3099く)'), 'ガク');
@@ -82,6 +142,7 @@ test('確認済みの11桁の項目IDを抽出・スキーマ検証・候補照�
         瞳睛: [{ path: '/kotoba/000007484700', reading: 'ドウセイ' }],
       },
     }),
+    /Dictionary schema/,
   );
 });
 
@@ -97,6 +158,10 @@ test('安定した辞書生成で同形異読を保持し、重複を除去し�
 
   assert.equal(dictionary.entries['愛着'].length, 2);
   assert.equal(dictionary.entries['白亜'].length, 1);
+  assert.deepEqual(dictionary.entries['愛着'], [
+    { path: '/kotoba/0000021500', reading: 'アイジャク' },
+    { path: '/kotoba/0000023100', reading: 'アイチャク' },
+  ]);
   assert.equal(
     JSON.stringify(dictionary),
     JSON.stringify(stableDictionary([...records].reverse())),
@@ -106,21 +171,30 @@ test('安定した辞書生成で同形異読を保持し、重複を除去し�
 
   await validateDictionary(dictionary);
 
-  await assert.rejects(validateDictionary({ schemaVersion: 2, entries: {} }));
+  await assert.rejects(
+    validateDictionary({ schemaVersion: 2, entries: {} }),
+    /Dictionary schema/,
+  );
   await assert.rejects(
     validateDictionary({
       schemaVersion: 1,
       entries: { a: [{ path: 'https://evil.test', reading: 'ア' }] },
     }),
+    /Dictionary schema/,
   );
 });
 
 test('読みが不一致または同じ読みの候補が曖昧な場合はリンク先を推測しない', () => {
-  const dict = stableDictionary([
-    record(),
-    record('/kotoba/0000000001', 'ハクア', '曖昧'),
-    record('/kotoba/0000000002', 'ハクア', '曖昧'),
-  ]);
+  const dict = {
+    schemaVersion: 1,
+    entries: {
+      白亜: [{ path: '/kotoba/0005614200', reading: 'ハクア' }],
+      曖昧: [
+        { path: '/kotoba/0000000001', reading: 'ハクア' },
+        { path: '/kotoba/0000000002', reading: 'ハクア' },
+      ],
+    },
+  };
 
   assert.equal(chooseCandidate(dict, '白亜', ['はくあ']), '/kotoba/0005614200');
   assert.equal(chooseCandidate(dict, '白亜', ['ハクアキ']), null);
@@ -200,23 +274,52 @@ test('ことわざの括弧なしの仮名読みを正規化し、原文も保�
   assert.equal(parsed.records[0].rawReading, 'アウンのコキュウ');
 });
 
-test('検索条件と件数が正しい場合だけ0件と判定し、空のDOMやエラー画面は拒否する', () => {
-  assert.equal(
+test('検索条件と件数が正しい場合だけ0件と判定する', () => {
+  assert.partialDeepStrictEqual(
     extractSearch(searchFixture({ total: 0, rows: '' }), {
       prefix: 'あ',
       page: 1,
-    }).total,
-    0,
+    }),
+    {
+      total: 0,
+      page: 1,
+      lastPage: 1,
+      rowCount: 0,
+      records: [],
+      diagnostics: [],
+    },
   );
-
-  for (const html of [
-    '',
-    '<h1>500</h1>',
-    searchFixture({ prefix: 'か' }),
-    searchFixture().replace('<br>', ''),
-  ])
-    assert.throws(() => extractSearch(html, { prefix: 'あ', page: 1 }));
 });
+
+for (const [label, html, reason] of [
+  ['空本文', '', /Empty response/],
+  ['エラー画面', '<h1>500</h1>', /Search conditions mismatch/],
+  [
+    '別の検索条件',
+    searchFixture({ prefix: 'か' }),
+    /Search conditions mismatch/,
+  ],
+  [
+    '読み区切りの欠落',
+    searchFixture().replace('<br>', ''),
+    /Missing heading\/reading separator/,
+  ],
+  [
+    '一覧内の重複URL',
+    searchFixture({ total: 2, rows: row() + row() }),
+    /Duplicate item URL/,
+  ],
+  ['0件なのに結果行がある', searchFixture({ total: 0 }), /Invalid zero-result/],
+  [
+    '件数と結果行の不一致',
+    searchFixture({ total: 2 }),
+    /Pager does not account/,
+  ],
+]) {
+  test(`検索結果が${label}なら解析を停止する`, () => {
+    assert.throws(() => extractSearch(html, { prefix: 'あ', page: 1 }), reason);
+  });
+}
 
 test('ページ番号の省略を正規化し、異なる検索条件や現在ページの不一致を拒否する', () => {
   assert.equal(searchPage(searchURL('あ'), 'あ'), 1);
@@ -227,11 +330,15 @@ test('ページ番号の省略を正規化し、異なる検索条件や現在�
     }).lastPage,
     14,
   );
-  assert.throws(() =>
-    extractSearch(searchFixture({ page: 1 }), { prefix: 'あ', page: 2 }),
+  assert.throws(
+    () => extractSearch(searchFixture({ page: 1 }), { prefix: 'あ', page: 2 }),
+    /Current page mismatch/,
   );
-  assert.throws(() => searchPage('/search?k=あ&wt=1&sk=leftHand&page=2', 'あ'));
-  assert.throws(() => searchPage(searchURL('あ', 0), 'あ'));
+  assert.throws(
+    () => searchPage('/search?k=あ&wt=1&sk=leftHand&page=2', 'あ'),
+    /Unexpected pager conditions/,
+  );
+  assert.throws(() => searchPage(searchURL('あ', 0), 'あ'), /Invalid page/);
 });
 
 const fixture = await readFile(
@@ -263,6 +370,10 @@ test('見出しと読みが完全一致する場合だけリンクし、再実�
 
     assert.equal(linkDocument(doc, dictionary), 1);
     assert.equal(doc.querySelector('#target a').textContent, '白亜(ハクア)');
+    assert.equal(
+      doc.querySelector('#target a').href,
+      'https://www.kanjipedia.jp/kotoba/0005614200',
+    );
     assert.equal(doc.getElementById('target').textContent, before);
     assert.equal(other.outerHTML, otherHTML);
 

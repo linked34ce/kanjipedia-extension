@@ -5,6 +5,7 @@ import {
   robotsRules,
   robotsAllowed,
   retryAfter,
+  scheduleRetry,
 } from '../collector/http.js';
 
 const origin = 'https://www.kanjipedia.jp';
@@ -29,12 +30,15 @@ function mockGate(responses, options = {}) {
       saves.push(structuredClone(s));
     },
     request: async (url, options) => {
+      assert.ok(responses.length, `予定外のHTTP要求: ${url}`);
       starts.push({ at: clock, url, options });
       clock += 2000;
 
       const next = responses.shift();
 
       if (next instanceof Error) throw next;
+
+      if (typeof next === 'function') return next(url, options);
 
       return new Response(next?.body ?? 'ok', {
         status: next?.status ?? 200,
@@ -65,6 +69,139 @@ test('すべての要求を応答終了から10秒以上空けて直列実行し
   assert.ok(saves[0].nextAt >= saves[0].lastAt + 40_000);
   assert.ok(starts[0].options.signal instanceof AbortSignal);
   assert.equal(starts[0].options.redirect, 'manual');
+});
+
+for (const [label, response, reason] of [
+  ['401', { status: 401 }, 'Access blocked: HTTP 401'],
+  ['403', { status: 403 }, 'Access blocked: HTTP 403'],
+  ['404', { status: 404 }, 'Unexpected/empty response: HTTP 404'],
+  ['空の200', { body: '' }, 'Unexpected/empty response: HTTP 200'],
+  [
+    '200のブロック画面',
+    { body: '<h1>CAPTCHA</h1>' },
+    'Access blocked: HTTP 200',
+  ],
+]) {
+  test(`${label}は再試行可能にせず、応答と停止理由を保存する`, async () => {
+    const recorded = [];
+    const { gate, starts, saves } = mockGate([response], {
+      recordResponse: async (result) => recorded.push(result),
+    });
+
+    await assert.rejects(gate.get(`${origin}/x`), { code: 3, message: reason });
+    assert.equal(starts.length, 1);
+    assert.equal(saves.at(-1).count, 1);
+    assert.equal(recorded[0].status, response.status ?? 200);
+    assert.equal(recorded[0].body, response.body ?? 'ok');
+  });
+}
+
+test('UTC日次上限の直前の1要求を許可し、翌UTC日に枠を更新する', async () => {
+  const { gate, starts, advance } = mockGate([{}, {}]);
+  gate.state.day = '2026-11-15';
+  gate.state.count = 499;
+
+  await gate.get(`${origin}/x`);
+  await assert.rejects(gate.get(`${origin}/x`), {
+    code: 2,
+    message: 'UTC daily limit reached',
+  });
+  assert.equal(starts.length, 1);
+  assert.equal(gate.state.count, 500);
+
+  advance(86_400_000 - 12_000);
+  await gate.get(`${origin}/x`);
+
+  assert.equal(starts[1].at, Date.parse('2026-11-16T00:00:00Z'));
+  assert.equal(gate.state.day, '2026-11-16');
+  assert.equal(gate.state.count, 1);
+});
+
+test('応答本文を読み終えるまで次の要求を許可せず、本文完了時から間隔を空ける', async () => {
+  const body = Promise.withResolvers();
+  const reading = Promise.withResolvers();
+  const { gate, starts, advance } = mockGate([
+    () => ({
+      status: 200,
+      headers: new Headers(),
+      text: () => {
+        reading.resolve();
+        return body.promise;
+      },
+    }),
+    {},
+  ]);
+  const first = gate.get(`${origin}/x`);
+  await reading.promise;
+
+  await assert.rejects(gate.get(`${origin}/x`), {
+    code: 3,
+    message: 'Concurrent request rejected',
+  });
+  advance(5_000);
+  body.resolve('本文');
+  await first;
+  await gate.get(`${origin}/x`);
+
+  assert.equal(starts[1].at - starts[0].at, 17_000);
+});
+
+test('冷却期限のちょうどその時刻から要求を再開できる', async () => {
+  const { gate, starts, advance } = mockGate([
+    { status: 429, headers: { 'retry-after': '1200' } },
+    {},
+  ]);
+
+  await assert.rejects(gate.get(`${origin}/x`), { code: 3 });
+  advance(1_200_000 - 1);
+  await assert.rejects(gate.get(`${origin}/x`), /Cooling down/);
+  assert.equal(starts.length, 1);
+
+  advance(1);
+  assert.equal((await gate.get(`${origin}/x`)).status, 200);
+  assert.equal(gate.state.count, 2);
+});
+
+for (const [label, nextOffset, random, expectedOffset] of [
+  ['1回目の再試行にジッターを加える', 0, 0.5, 62_500],
+  ['予約済みの長い待機を短縮しない', 300_000, 0, 300_000],
+]) {
+  test(`${label}待機を保存し、ゲートを作り直しても維持する`, async () => {
+    const { gate } = mockGate([], { random: () => random });
+    const now = gate.now();
+    gate.state.nextAt = now + nextOffset;
+    await scheduleRetry(gate, 1);
+
+    const { gate: resumed, starts } = mockGate([{}], {
+      state: structuredClone(gate.state),
+    });
+    await resumed.get(`${origin}/x`);
+
+    assert.equal(starts[0].at, now + expectedOffset);
+  });
+}
+
+test('要求枠の永続化に失敗したらHTTPを送らない', async () => {
+  const failure = new Error('カウンター保存失敗');
+  const { gate, starts } = mockGate([{}], {
+    save: async () => {
+      throw failure;
+    },
+  });
+
+  await assert.rejects(gate.get(`${origin}/x`), failure);
+  assert.equal(starts.length, 0);
+});
+
+test('失敗の間に正常応答があれば連続失敗数をリセットする', async () => {
+  const { gate } = mockGate([{ status: 500 }, {}, { status: 500 }]);
+
+  await assert.rejects(gate.get(`${origin}/x`), { retryable: true });
+  await gate.get(`${origin}/x`);
+  await assert.rejects(gate.get(`${origin}/x`), { retryable: true });
+
+  assert.equal(gate.state.consecutiveFailures, 1);
+  assert.equal(gate.state.count, 3);
 });
 
 test('並行要求・日次上限・1回の実行上限を超える要求を拒否する', async () => {
@@ -100,6 +237,7 @@ test('429で冷却期限を永続化して停止し、冷却後の要求も計�
     state: structuredClone(gate.state),
     save: async () => {},
     now: () => cooldown - 1,
+    request: async () => assert.fail('冷却中にHTTP要求を送ってはいけない'),
   });
 
   await assert.rejects(resumed.get(`${origin}/x`), /Cooling/);
@@ -126,19 +264,7 @@ test('Retry-Afterが秒数・HTTP日時・不正値・過去日時でも最低15
     assert.equal(retryAfter(value, now), now + 900_000);
 });
 
-test('401・403・404・空の200・ブロック画面で停止し、空の500は0件扱いせず再試行可能にする', async () => {
-  for (const item of [
-    { status: 401 },
-    { status: 403 },
-    { status: 404 },
-    { body: '' },
-    { body: '<h1>CAPTCHA</h1>' },
-  ]) {
-    const { gate } = mockGate([item]);
-
-    await assert.rejects(gate.get(`${origin}/x`));
-  }
-
+test('空の500とタイムアウトを再試行可能にし、連続3失敗で停止する', async () => {
   const { gate } = mockGate([
     { status: 500, body: '' },
     new Error('timeout'),

@@ -1,8 +1,8 @@
+import { temporaryDirectory } from './helpers/files.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { root } from '../scripts/dictionary.js';
@@ -18,8 +18,8 @@ const validate = (input) =>
     },
   );
 
-async function dictionaryFile() {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'kanjipedia-cli-'));
+async function dictionaryFile(t) {
+  const directory = await temporaryDirectory(t);
   const input = path.join(directory, 'dictionary.json');
 
   await writeJSON(input, {
@@ -30,8 +30,8 @@ async function dictionaryFile() {
   return { directory, input };
 }
 
-test('validateはmanifestと一致する辞書を受け入れ、構造が正しくても内容が変われば拒否する', async () => {
-  const { directory, input } = await dictionaryFile();
+test('validateはmanifestと一致する辞書を受け入れ、構造が正しくても内容が変われば拒否する', async (t) => {
+  const { directory, input } = await dictionaryFile(t);
 
   await writeJSON(path.join(directory, 'manifest.json'), {
     sha256: hash(await fs.readFile(input)),
@@ -52,16 +52,20 @@ test('validateはmanifestと一致する辞書を受け入れ、構造が正し�
   });
 });
 
-test('validateはmanifestのない合成辞書を検証でき、生成物を書き込まない', async () => {
-  const { directory, input } = await dictionaryFile();
+test('validateはmanifestのない合成辞書を検証でき、生成物を書き込まない', async (t) => {
+  const { directory, input } = await dictionaryFile(t);
 
   assert.deepEqual(JSON.parse((await validate(input)).stdout), { valid: true });
   assert.deepEqual(await fs.readdir(directory), ['dictionary.json']);
 });
 
-test('validateは破損したmanifestを未提供として扱わず拒否する', async () => {
-  const { directory, input } = await dictionaryFile();
+test('validateは破損したmanifestを未提供として扱わず拒否する', async (t) => {
+  const { directory, input } = await dictionaryFile(t);
 
   await fs.writeFile(path.join(directory, 'manifest.json'), '{');
-  await assert.rejects(validate(input), (error) => error.code === 1);
+  await assert.rejects(validate(input), (error) => {
+    assert.equal(error.code, 1);
+    assert.match(JSON.parse(error.stderr).error, /JSON/);
+    return true;
+  });
 });

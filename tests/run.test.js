@@ -1,7 +1,7 @@
+import { temporaryDirectory } from './helpers/files.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   createRun,
@@ -22,7 +22,6 @@ import { extractSearch } from '../collector/extract.js';
 import { searchFixture, row } from './fixtures/search.js';
 
 const plan = [{ prefix: 'あ', status: 'target', verification: 'unconfirmed' }];
-const temporary = () => fs.mkdtemp(path.join(os.tmpdir(), 'kanjipedia-test-'));
 
 function fakeGate(bodies) {
   let now = Date.parse('2026-11-15T00:00:00Z'),
@@ -40,6 +39,7 @@ function fakeGate(bodies) {
         return new Response('User-agent:*\nDisallow:');
 
       calls++;
+      assert.ok(bodies.length, `予定外の検索要求: ${url}`);
 
       return new Response(bodies.shift() ?? '', {
         status: bodies.status ?? 200,
@@ -50,8 +50,8 @@ function fakeGate(bodies) {
   return { gate, calls: () => calls };
 }
 
-test('永続キューで端数の最終ページまで完了し、再開時はHTTPで再取得しない', async () => {
-  const directory = await temporary();
+test('永続キューで端数の最終ページまで完了し、再開時はHTTPで再取得しない', async (t) => {
+  const directory = await temporaryDirectory(t);
   const run = createRun(plan);
   const { gate, calls } = fakeGate([
     searchFixture({
@@ -85,9 +85,12 @@ test('永続キューで端数の最終ページまで完了し、再開時はHT
   assert.equal(JSON.stringify(saved.queue.map((j) => j.parsed)), before);
 });
 
-test('証跡保存後・解析後・完了記録前の中断から再取得せず処理中のジョブを復元する', async () => {
-  for (const stage of ['after-fetch', 'after-parse', 'before-done']) {
-    const directory = await temporary();
+for (const [label, parsed] of [
+  ['解析結果のない取得済みページ', undefined],
+  ['古い解析結果が残る取得済みページ', { records: [{ variants: ['誤解析'] }] }],
+]) {
+  test(`${label}を保存HTMLから再解析し、HTTPで再取得せず復元する`, async (t) => {
+    const directory = await temporaryDirectory(t);
     const run = createRun(plan),
       job = run.queue[0];
     const html = searchFixture();
@@ -101,8 +104,7 @@ test('証跡保存後・解析後・完了記録前の中断から再取得せ�
     });
     job.state = 'inflight';
 
-    if (stage !== 'after-fetch')
-      job.parsed = extractSearch(html, { prefix: 'あ', page: 1 });
+    job.parsed = parsed;
 
     await writeJSON(path.join(directory, 'run.json'), run);
 
@@ -110,11 +112,12 @@ test('証跡保存後・解析後・完了記録前の中断から再取得せ�
 
     assert.equal((await processRun(resumed, directory, null)).complete, true);
     assert.equal(resumed.queue[0].state, 'done');
-  }
-});
+    assert.deepEqual(resumed.queue[0].parsed.records[0].variants, ['白亜']);
+  });
+}
 
-test('HTML書き込みが中断しても原子的に保存した応答一式からHTMLを復元する', async () => {
-  const directory = await temporary(),
+test('HTML書き込みが中断しても原子的に保存した応答一式からHTMLを復元する', async (t) => {
+  const directory = await temporaryDirectory(t),
     run = createRun(plan),
     html = searchFixture();
 
@@ -133,8 +136,56 @@ test('HTML書き込みが中断しても原子的に保存した応答一式か�
   );
 });
 
-test('復元用の応答一式が不正ならHTMLの復元や再取得をせず停止する', async () => {
-  const directory = await temporary();
+for (const boundary of ['HTML保存', '完了状態保存']) {
+  test(`${boundary}に失敗しても保存済み応答から再取得せず再開する`, async (t) => {
+    const directory = await temporaryDirectory(t);
+    const run = createRun(plan);
+    const { gate, calls } = fakeGate([searchFixture()]);
+    const rename = fs.rename.bind(fs);
+    const failure = Object.assign(new Error('保存境界でのI/O障害'), {
+      code: 'EIO',
+    });
+    let injected = false;
+
+    t.mock.method(fs, 'rename', async (from, to) => {
+      const target =
+        boundary === 'HTML保存'
+          ? to.endsWith('.html')
+          : to.endsWith('run.json') &&
+            JSON.parse(await fs.readFile(from, 'utf8')).queue[0].state ===
+              'done';
+
+      if (target && !injected) {
+        injected = true;
+        throw failure;
+      }
+
+      return rename(from, to);
+    });
+
+    await assert.rejects(processRun(run, directory, gate), failure);
+    assert.equal(injected, true, '指定した保存境界まで処理を進める');
+
+    const saved = await readJSON(path.join(directory, 'run.json'));
+    assert.equal(saved.queue[0].state, 'failed');
+    let resumed;
+
+    await assert.doesNotReject(async () => {
+      resumed = await processRun(saved, directory, null);
+    }, '保存済みの応答だけで再開でき、HTTPゲートを必要としない');
+
+    assert.equal(calls(), 1, '保存失敗後も応答を再取得しない');
+    assert.equal(resumed.complete, true);
+    assert.deepEqual(
+      (await readJSON(path.join(directory, 'run.json'))).queue[0].parsed
+        .records[0].variants,
+      ['白亜'],
+    );
+  });
+}
+
+test('復元用の応答一式が不正ならHTMLの復元や再取得をせず停止する', async (t) => {
+  const directory = await temporaryDirectory(t);
   const run = createRun(plan);
 
   await writeJSON(path.join(directory, '3042-1.response.json'), {
@@ -157,8 +208,8 @@ test('復元用の応答一式が不正ならHTMLの復元や再取得をせず�
   assert.equal(saved.complete, false);
 });
 
-test('オフライン再解析では保存証跡のないページを未処理のまま残す', async () => {
-  const directory = await temporary();
+test('オフライン再解析では保存証跡のないページを未処理のまま残す', async (t) => {
+  const directory = await temporaryDirectory(t);
   const run = createRun(plan);
   const report = await processRun(run, directory, null, { reparse: true });
 
@@ -171,14 +222,8 @@ test('オフライン再解析では保存証跡のないページを未処理�
   assert.equal(saved.queue[0].attempts, 0);
 });
 
-test('保存HTMLの破損で安全側に停止し、中断した一時ファイルは正常な状態を上書きしない', async () => {
-  const directory = await temporary(),
-    file = path.join(directory, 'state.json');
-
-  await writeJSON(file, { valid: true });
-  await fs.writeFile(`${file}.interrupted.tmp`, '{');
-
-  assert.deepEqual(await readJSON(file), { valid: true });
+test('保存HTMLのハッシュが不一致なら安全側に停止する', async (t) => {
+  const directory = await temporaryDirectory(t);
 
   await atomicWrite(path.join(directory, '3042-1.html'), searchFixture());
   await writeJSON(path.join(directory, '3042-1.response.json'), {
@@ -270,8 +315,8 @@ test('欠落ページや件数の不一致があれば収集完了にしない',
   );
 });
 
-test('未完了の出力では完成した世代の参照を上書きしない', async () => {
-  const directory = await temporary(),
+test('未完了の出力では完成した世代の参照を上書きしない', async (t) => {
+  const directory = await temporaryDirectory(t),
     run = createRun(plan);
   const { gate } = fakeGate([searchFixture()]);
 
@@ -301,8 +346,8 @@ test('未完了の出力では完成した世代の参照を上書きしない',
   );
 });
 
-test('プロセスロックで二重収集を拒否し、解放後は次の収集を許可する', async () => {
-  const directory = await temporary();
+test('プロセスロックで二重収集を拒否し、解放後は次の収集を許可する', async (t) => {
+  const directory = await temporaryDirectory(t);
   const release = await acquireLock(directory);
 
   await assert.rejects(acquireLock(directory), /already running/);
@@ -314,8 +359,8 @@ test('プロセスロックで二重収集を拒否し、解放後は次の収�
   await nextRelease();
 });
 
-test('失敗後も試行回数を保持して3回で打ち切り、すべてのHTTP要求を計上する', async () => {
-  const directory = await temporary(),
+test('失敗後も試行回数を保持して3回で打ち切り、すべてのHTTP要求を計上する', async (t) => {
+  const directory = await temporaryDirectory(t),
     run = createRun(plan);
   const bodies = ['fail', 'fail', 'fail'];
 
@@ -345,12 +390,12 @@ test('失敗後も試行回数を保持して3回で打ち切り、すべてのH
   assert.equal(calls(), 3);
 });
 
-test('同一URLの見出し・読みの矛盾で後続取得を止め、再開・再解析・部分出力でも矛盾を保持する', async () => {
+test('同一URLの見出し・読みの矛盾で後続取得を止め、再開・再解析・部分出力でも矛盾を保持する', async (t) => {
   for (const [heading, reading] of [
     ['白堊', 'ハクア'],
     ['白亜', 'ア'],
   ]) {
-    const directory = await temporary();
+    const directory = await temporaryDirectory(t);
     const run = createRun(['あ', 'か', 'さ'].map((prefix) => ({ prefix })));
     const { gate, calls } = fakeGate([
       searchFixture(),
@@ -406,8 +451,8 @@ test('同一URLの見出し・読みの矛盾で後続取得を止め、再開�
   }
 });
 
-test('同じ接頭辞の途中ページで矛盾した場合も末尾ページの取得前に停止する', async () => {
-  const directory = await temporary();
+test('同じ接頭辞の途中ページで矛盾した場合も末尾ページの取得前に停止する', async (t) => {
+  const directory = await temporaryDirectory(t);
   const run = createRun(plan);
   const { gate, calls } = fakeGate([
     searchFixture({ total: 3, last: 3 }),
@@ -426,8 +471,8 @@ test('同じ接頭辞の途中ページで矛盾した場合も末尾ページ�
   );
 });
 
-test('旧実装で保存した矛盾のあるrunも再開時に取得前に停止する', async () => {
-  const directory = await temporary();
+test('旧実装で保存した矛盾のあるrunも再開時に取得前に停止する', async (t) => {
+  const directory = await temporaryDirectory(t);
   const run = createRun(['あ', 'か', 'さ'].map((prefix) => ({ prefix })));
 
   for (const [index, heading] of ['白亜', '白堊'].entries()) {
@@ -453,8 +498,8 @@ test('旧実装で保存した矛盾のあるrunも再開時に取得前に停�
   );
 });
 
-test('別の接頭辞に現れる同一URLでも見出しと読みが一致すれば収集を続ける', async () => {
-  const directory = await temporary();
+test('別の接頭辞に現れる同一URLでも見出しと読みが一致すれば収集を続ける', async (t) => {
+  const directory = await temporaryDirectory(t);
   const run = createRun(['あ', 'か', 'さ'].map((prefix) => ({ prefix })));
   const { gate, calls } = fakeGate(
     ['あ', 'か', 'さ'].map((prefix) => searchFixture({ prefix })),
