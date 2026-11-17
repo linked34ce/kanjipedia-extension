@@ -17,28 +17,44 @@ export async function readJSON(file, fallback) {
   catch (error) { if (error.code === 'ENOENT' && fallback !== undefined) return fallback; throw error; }
 }
 
+async function withLockGuard(directory, action) {
+  const guard = path.join(directory, 'collector.lock.guard');
+  // Serialize every lock mutation, including stale recovery and token-checked release.
+  // Never reclaim this guard automatically: that would introduce the same race again.
+  try { await fs.mkdir(guard); }
+  catch (error) {
+    if (error.code === 'EEXIST')
+      throw new Error('Collector lock maintenance is busy (collector.lock.guard); see docs/development.md');
+    throw error;
+  }
+  try { return await action(); }
+  finally { await fs.rmdir(guard); }
+}
+
 export async function acquireLock(directory) {
   await fs.mkdir(directory, { recursive: true });
   const file = path.join(directory, 'collector.lock');
   const token = randomUUID();
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const handle = await fs.open(file, 'wx');
-      await handle.writeFile(JSON.stringify({ pid: process.pid, token }));
-      await handle.close();
-      return async () => {
-        const existing = await readJSON(file);
-        if (existing.token === token) await fs.unlink(file);
-      };
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      const existing = await readJSON(file); // malformed lock fails closed
-      try { process.kill(existing.pid, 0); }
-      catch (probe) {
-        if (probe.code === 'ESRCH') { await fs.unlink(file); continue; }
+  return withLockGuard(directory, async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const handle = await fs.open(file, 'wx');
+        try { await handle.writeFile(JSON.stringify({ pid: process.pid, token })); }
+        finally { await handle.close(); }
+        return () => withLockGuard(directory, async () => {
+          const existing = await readJSON(file, null);
+          if (existing?.token === token) await fs.unlink(file);
+        });
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        const existing = await readJSON(file); // malformed lock fails closed
+        try { process.kill(existing.pid, 0); }
+        catch (probe) {
+          if (probe.code === 'ESRCH') { await fs.unlink(file); continue; }
+        }
+        throw new Error('Collector is already running (collector.lock)');
       }
-      throw new Error('Collector is already running (collector.lock)');
     }
-  }
-  throw new Error('Could not acquire collector lock');
+    throw new Error('Could not acquire collector lock');
+  });
 }
