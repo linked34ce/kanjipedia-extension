@@ -1,7 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { root, buildExtension, validateDictionary } from '../scripts/build.js';
+import { buildExtension } from '../scripts/build.js';
+import { root, validateDictionary } from '../scripts/dictionary.js';
 import {
   acquireLock,
   readJSON,

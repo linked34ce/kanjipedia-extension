@@ -3,7 +3,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { chromium } from 'playwright';
-import { buildExtension, root } from '../scripts/build.js';
+import { buildExtension } from '../scripts/build.js';
+import { root } from '../scripts/dictionary.js';
 import { stableDictionary, chooseCandidate, ORIGIN } from '../shared/core.js';
 import { writeJSON } from '../collector/store.js';
 

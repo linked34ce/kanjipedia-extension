@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
-import { root, validateDictionary } from './build.js';
+import { root, validateDictionary } from './dictionary.js';
 import { hash, readJSON, atomicWrite, writeJSON } from '../collector/store.js';
 import { ORIGIN, chooseCandidate } from '../shared/core.js';
 import { linkDocument } from '../extension/source.js';

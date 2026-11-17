@@ -2,7 +2,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { root, validateDictionary, buildExtension } from './build.js';
+import { buildExtension } from './build.js';
+import { root, validateDictionary } from './dictionary.js';
 import { atomicWrite, hash, readJSON, writeJSON } from '../collector/store.js';
 
 // Ship only the minimal mapping and collection summary; raw evidence stays local.

@@ -10,7 +10,7 @@ import {
   chooseCandidate,
 } from '../shared/core.js';
 import { extractSearch, searchPage, searchURL } from '../collector/extract.js';
-import { validateDictionary } from '../scripts/build.js';
+import { validateDictionary } from '../scripts/dictionary.js';
 import { linkDocument, parseSegment, segments } from '../extension/source.js';
 import { searchFixture, row } from './fixtures/search.js';
 const record = (

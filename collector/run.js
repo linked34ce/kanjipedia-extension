@@ -5,7 +5,7 @@ import { extractSearch, searchURL } from './extract.js';
 import { atomicWrite, readJSON, writeJSON, hash } from './store.js';
 import { Stop, scheduleRetry } from './http.js';
 import { stableDictionary, PARSER_VERSION } from '../shared/core.js';
-import { validateDictionary } from '../scripts/build.js';
+import { validateDictionary } from '../scripts/dictionary.js';
 
 export function createRun(prefixes, { full = false, seedPage = 1 } = {}) {
   return {
